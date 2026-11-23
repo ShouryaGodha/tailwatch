@@ -1,0 +1,5 @@
+{
+  "task": "Add one sentence to the Conventions section of docs/engineer.md: a migration is a new numbered file under src/tailwatch/store/migrations and is never edited after it ships. No code change.",
+  "must_change": ["docs/engineer.md"],
+  "must_contain": ["never edited after it ships"]
+}

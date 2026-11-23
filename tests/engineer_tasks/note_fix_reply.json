@@ -1,0 +1,5 @@
+{
+  "task": "The desk note's how-to-reply line should also show how to fix a card, as 'fix R12: what is wrong', between drop and apply. Change the line in the note and the test that checks the layout.",
+  "must_change": ["src/tailwatch/desk/note.py", "tests/"],
+  "must_contain": ["fix R12"]
+}

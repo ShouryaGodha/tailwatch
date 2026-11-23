@@ -18,7 +18,7 @@ LEVELS = ("different", "initials", "variant", "exact")
 # Groups of first names that are one name. A token may sit in more than one group ("alex").
 _GROUPS = (
     "william bill billy will willy liam", "robert bob bobby rob robbie bert", "richard rick ricky rich dick",
-    "michael mike mikey mick micky", "james jim jimmy jamie", "thomas tom tommy", "david dave davy",
+    "michael mick micky", "james jim jimmy jamie", "thomas tom tommy", "david dave davy",
     "christopher chris kit", "christine chris chrissy christina tina", "katherine catherine kathryn kate katie kathy cathy kat",
     "elizabeth liz lizzie beth betsy eliza libby", "jennifer jen jenny", "daniel dan danny", "joseph joe joey",
     "nicholas nick nicky", "alexander alex sasha xander", "alexandra alex sasha lexi", "andrew andy drew",

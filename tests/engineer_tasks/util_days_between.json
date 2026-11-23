@@ -1,0 +1,5 @@
+{
+  "task": "Add a helper days_between(a, b) to src/tailwatch/util.py that returns the whole days between two ISO-8601 UTC times (as parse reads them), 0 when either is missing, with a test for it under tests/.",
+  "must_change": ["src/tailwatch/util.py", "tests/"],
+  "must_contain": ["def days_between"]
+}

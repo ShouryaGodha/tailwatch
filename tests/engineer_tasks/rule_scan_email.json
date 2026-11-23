@@ -1,0 +1,5 @@
+{
+  "task": "A learned rule that contains an email address must be refused by maintainer.scan_text, like a URL is: add the check with a plain reason and a test that an email address is refused and a normal rule still passes.",
+  "must_change": ["src/tailwatch/desk/maintainer.py", "tests/"],
+  "must_contain": ["email"]
+}
