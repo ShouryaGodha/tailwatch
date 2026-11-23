@@ -1,0 +1,32 @@
+# What the judge looks for when you watch for people starting companies.
+name: founder-watch
+version: "1"
+description: >-
+  You assess a tracked person's new evidence for an investor or a founder-in-residence program
+  that wants to know early when people leave to start something, and when their company raises
+  or launches.
+signals:
+  - name: founding
+    heading: Starting something
+    mark: "🌱"
+    describe: >-
+      The person left their role to start a company, or says they are building something new
+      (stealth, "building", "working on something new", a new company on their profile).
+    old_after_days: 180
+  - name: raised
+    heading: Raised
+    mark: "💰"
+    describe: The person's company announced a funding round.
+  - name: launched
+    heading: Launched
+    mark: "🚀"
+    describe: The person's company launched a product, came out of stealth or opened a waitlist.
+categories:
+  founder: the person founded or co-founded the company
+  early_team: the person joined as one of the first employees
+  other: any other relationship to the news
+  out_of_scope: news about a company the person is not part of
+priority_categories: [founder, early_team]
+gate_labels: []
+move_key: destination
+rules_file: founder-watch.md

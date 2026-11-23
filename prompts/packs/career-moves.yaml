@@ -1,0 +1,35 @@
+# What the judge looks for when you track people for career moves: who left, who is looking.
+name: career-moves
+version: "1"
+description: >-
+  You assess a tracked person's new evidence for someone who wants to know, early, when people
+  they care about leave their organization or start looking for their next role.
+signals:
+  - name: left
+    heading: Left
+    mark: "🔴"
+    describe: >-
+      Employment at the recorded organization ended or was replaced by a role elsewhere, with no
+      continuing main role at the original organization. A move to a named organization is left,
+      and the summary says where. Distinguish an explicit end date from a removed entry; never
+      invent a date.
+    old_after_days: 180
+  - name: looking
+    heading: Looking
+    mark: "🟡"
+    describe: >-
+      Evidence in the person's own words of openness to moving: an explicit job search, stated
+      availability, a dated plan to leave, or a materially updated CV whose content supports it.
+    stale_after_days: 14
+categories:
+  researcher: a person whose work is research (a research scientist, a professor, a PhD researcher)
+  engineer: an engineer who builds systems, models or products
+  other: any other role; eligible
+  out_of_scope: a role outside what the watcher cares about (set in the pack rules); judged and recorded, never a card
+priority_categories: [researcher, engineer]
+# A change made only of these mechanical labels is recorded as none with no model call:
+# a flag alone is not a job search.
+gate_labels: ["hireable flag changed", "open to work flag changed"]
+# Cards are deduplicated on the signal and the destination: one card per move.
+move_key: destination
+rules_file: career-moves.md

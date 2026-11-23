@@ -1,0 +1,35 @@
+# What the judge looks for when you follow what people publish and ship.
+name: research-output
+version: "1"
+description: >-
+  You assess a tracked person's new evidence for someone who follows their work and wants a short
+  daily note of what they published, released or launched that is worth reading.
+signals:
+  - name: paper
+    heading: New papers
+    mark: "📄"
+    describe: >-
+      A new paper, preprint or technical report the person authored (not a revision of an old one,
+      not a citation of their work).
+  - name: release
+    heading: Released
+    mark: "🚀"
+    describe: >-
+      A new open-source project, model, dataset or a major release of an existing one, published
+      by the person or with the person as a core author.
+  - name: announcement
+    heading: Announced
+    mark: "📣"
+    describe: >-
+      The person announced something material in their own words: a new role, a new lab or
+      company, a talk or course, an award.
+categories:
+  major: work the person leads or is first or last author on
+  contribution: work the person contributed to
+  minor: small updates (a patch release, a workshop paper)
+  out_of_scope: activity that is not output (stars, follows, likes, reposts, commit noise)
+priority_categories: [major, contribution]
+gate_labels: []
+# Cards are deduplicated on the item itself (a paper is one card however many sources report it).
+move_key: item
+rules_file: research-output.md
