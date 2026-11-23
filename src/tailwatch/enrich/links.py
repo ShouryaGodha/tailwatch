@@ -31,6 +31,19 @@ def people_to_look_at(store: Any, config: Any) -> list[dict[str, Any]]:
     return newcomers + backfill
 
 
+def fill_person(store: Any, config: Any, env: Mapping[str, str], person: Mapping[str, Any], *, http: Http | None = None,
+                toolkit: Toolkit | None = None) -> dict[str, Any]:
+    """The enricher on one tracked person: verified links fill empty kinds, and the person is
+    marked as looked at. Returns the enricher's result plus ``links_added`` (kind -> url).
+    Raises ``agent.EnrichError`` when the model gave no answer (the person stays unmarked)."""
+    toolkit = toolkit or Toolkit(store, config, env, budget=loop.Budget(float(config.budgets.enrich_per_person)), http=http)
+    found = agent.enrich_person(store, config, env, agent.seed_for_person(person), toolkit=toolkit)
+    empty = {kind: url for kind, url in found["verified"].items() if not (person.get("links") or {}).get(kind)}
+    added = store.add_links(person["id"], empty) if empty else {}
+    store.mark_links_enriched(person["id"])
+    return {**found, "links_added": added}
+
+
 def enrich_links(store: Any, config: Any, env: Mapping[str, str], *, http: Http | None = None,
                  log: Any = print) -> dict[str, Any]:
     counts: dict[str, Any] = {"people": 0, "links_added": 0, "filled": [], "failed": 0, "usd": 0.0, "stopped": ""}
@@ -42,9 +55,8 @@ def enrich_links(store: Any, config: Any, env: Mapping[str, str], *, http: Http 
             counts["stopped"] = stop
             break
         counts["people"] += 1
-        toolkit = Toolkit(store, config, env, budget=loop.Budget(float(config.budgets.enrich_per_person)), http=http)
         try:
-            found = agent.enrich_person(store, config, env, agent.seed_for_person(person), toolkit=toolkit)
+            found = fill_person(store, config, env, person, http=http)
         except Exception as error:
             counts["failed"] += 1
             counts["usd"] = round(counts["usd"] + float(getattr(error, "usd", 0.0) or 0.0), 6)
@@ -57,9 +69,7 @@ def enrich_links(store: Any, config: Any, env: Mapping[str, str], *, http: Http 
             continue
         failures = 0
         counts["usd"] = round(counts["usd"] + found["usd"], 6)
-        empty = {kind: url for kind, url in found["verified"].items() if not (person.get("links") or {}).get(kind)}
-        added = store.add_links(person["id"], empty) if empty else {}
-        store.mark_links_enriched(person["id"])
+        added = found["links_added"]
         if added:
             counts["links_added"] += len(added)
             counts["filled"].append({"person_id": person["id"], "links": added})

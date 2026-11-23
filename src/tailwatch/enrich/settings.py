@@ -202,7 +202,13 @@ def change(store: Any, key: str, value: Any, *, by: str, note: str = "") -> dict
 def revert(store: Any, key: str, version: int, *, by: str) -> dict[str, Any]:
     """Put back the value before ``version`` (a new version records the revert)."""
     key = key_of(key)
-    new = store.revert_setting(key, int(version), by=by)
+    versions = {int(h["version"]) for h in store.setting_history(key, limit=500)}
+    if int(version) not in versions:
+        raise SettingError(f"{key} has no version {version}")
+    if any(v < int(version) for v in versions):
+        new = store.revert_setting(key, int(version), by=by)
+    else:  # the first version replaced the default
+        new = store.set_setting(key, DEFAULTS[key], by=by, note=f"revert of version {version}")
     return {"key": key, "version": new, "value": get(store, key)}
 
 

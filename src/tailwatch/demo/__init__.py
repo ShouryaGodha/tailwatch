@@ -183,7 +183,27 @@ def _judge(seed: dict[str, Any]) -> dict[str, Any]:
     return {**base, "signal": "none", "summary": "No move in this change", "context": "", "reason": "Nothing points to a move."}
 
 
+def _desk(request: Request) -> Reply:
+    """The desk agent asked "why is Ada on the digest?": look the evidence up, then answer from it."""
+    from tailwatch.agent.types import ToolCall
+
+    results = [m for m in request.messages if m.get("role") == "tool"]
+    if not results:
+        return Reply(tool_calls=[ToolCall(id="call_why", name="why", args={"person": "Ada Quill"})],
+                     tokens_in=_tokens(request, 60)[0], tokens_out=60)
+    text = str(results[-1].get("content") or "")
+    found = re.search(r'"reason": "([^"]+)"', text)
+    review = re.search(r'"id": "(#R\d+)"', text)
+    answer = ("Ada Quill is on today's digest as *left*. Her homepage now says: \"In November 2026 I left Helios Labs "
+              "after four years to start a new company.\" " + (found.group(1) if found else "")
+              + " An earlier, weaker GitHub signal (\"building something new\") was superseded by this one, so she gets one card."
+              + (f" Editor review {review.group(1)}." if review else ""))
+    return Reply(text=answer, tokens_in=_tokens(request, 180)[0], tokens_out=180)
+
+
 def brain(request: Request) -> Reply:
+    if request.schema_name in ("desk", "channel"):
+        return _desk(request)
     seed: Any = None
     try:
         seed = json.loads(str(request.messages[0].get("content") or ""))
@@ -304,7 +324,18 @@ def run_demo(*, console: Any = None, keep: bool = False) -> dict[str, Any]:
         again = digest.post(store, config, env, sinks=[ConsoleSink(console)])
         console.print(f"Posted {result['people']} people ({result['ranked_by']} ranking). Posting again: {again['state']}.")
 
-        step("7 · Coverage and the run log", "Every model run is logged with tokens and real cost; failed runs keep what they spent.")
+        step("7 · Ask the desk", "The same agent answers in Slack, in the terminal (tailwatch ask) and over MCP. It loads skills on demand.")
+        console.print('[bold]> tailwatch ask "why is Ada Quill on the digest?"[/bold]')
+        try:
+            from tailwatch.desk.chat import respond
+
+            reply = respond(store, config, env, text="why is Ada Quill on the digest?", user="local", channel="cli",
+                            thread="demo", message_key="demo:why")
+            console.print(reply.get("answer") or "(no answer)")
+        except ImportError:
+            console.print("[dim](the desk is not installed)[/dim]")
+
+        step("8 · Coverage and the run log", "Every model run is logged with tokens and real cost; failed runs keep what they spent.")
         console.print(coverage.render(coverage.report(store)))
         table = Table("routine", "runs", "tokens in", "tokens out", "cost")
         for row in store.db.query("SELECT routine, COUNT(*) AS n, SUM(tokens_in) AS i, SUM(tokens_out) AS o, SUM(cost_usd) AS c "

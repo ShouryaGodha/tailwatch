@@ -18,11 +18,13 @@ LIST_CAP = 30
 SETTING_NAMES = tuple(tunables.SHORT)
 
 
-def _id(value: Any) -> int:
+def _id(value: Any) -> int | None:
     text = str(value or "").strip().lstrip("#").lstrip("Cc")
-    if not text.isdigit():
-        raise ValueError(f"not a candidate id: {value!r} (write #C12)")
-    return int(text)
+    return int(text) if text.isdigit() else None
+
+
+def _not_an_id(value: Any) -> dict[str, Any]:
+    return {"error": f"not a candidate id: {value!r} (write #C12)"}
 
 
 def _brief(row: dict[str, Any]) -> dict[str, Any]:
@@ -48,7 +50,10 @@ def mentions(ctx: ToolContext, state: str = "needs_review") -> dict[str, Any]:
             "quote and the checks that lowered it, its concerns, the tools it called and the cost.", evidence=True,
             candidate_id=P("integer", "the candidate, #C12 is 12"))
 def mention(ctx: ToolContext, candidate_id: Any) -> dict[str, Any]:
-    row = ctx.store.candidate(_id(candidate_id))
+    number = _id(candidate_id)
+    if number is None:
+        return _not_an_id(candidate_id)
+    row = ctx.store.candidate(number)
     if row is None:
         return {"error": f"no candidate {candidate_id}"}
     found = dict(row.get("enrichment") or {})
@@ -66,20 +71,29 @@ def mention(ctx: ToolContext, candidate_id: Any) -> dict[str, Any]:
             candidate_id=P("integer", "the candidate, #C12 is 12"),
             links=P("array", "profile URLs the person confirmed", required=False))
 def add_mention(ctx: ToolContext, candidate_id: Any, links: list[str] | None = None) -> dict[str, Any]:
-    return candidates.decide(ctx.store, ctx.config, ctx.env, _id(candidate_id), "add", links=list(links or []), by=ctx.user)
+    number = _id(candidate_id)
+    if number is None:
+        return _not_an_id(candidate_id)
+    return candidates.decide(ctx.store, ctx.config, ctx.env, number, "add", links=list(links or []), by=ctx.user)
 
 
 @TOOLS.tool("dismiss_mention", "Dismiss a report: not for the list. Keep the reason in the person's words.", writes=True,
             candidate_id=P("integer", "the candidate, #C12 is 12"), reason=P("string", "why, as the person said it"))
 def dismiss_mention(ctx: ToolContext, candidate_id: Any, reason: str) -> dict[str, Any]:
-    return candidates.decide(ctx.store, ctx.config, ctx.env, _id(candidate_id), "dismiss", note=reason, by=ctx.user)
+    number = _id(candidate_id)
+    if number is None:
+        return _not_an_id(candidate_id)
+    return candidates.decide(ctx.store, ctx.config, ctx.env, number, "dismiss", note=reason, by=ctx.user)
 
 
 @TOOLS.tool("enrich_again", "Send a report back to the enricher: it tries again on the next tick with a fresh budget.",
             writes=True, candidate_id=P("integer", "the candidate, #C12 is 12"),
             note=P("string", "what to look for, when the person said", required=False))
 def enrich_again(ctx: ToolContext, candidate_id: Any, note: str = "") -> dict[str, Any]:
-    return candidates.decide(ctx.store, ctx.config, ctx.env, _id(candidate_id), "retry", note=note, by=ctx.user)
+    number = _id(candidate_id)
+    if number is None:
+        return _not_an_id(candidate_id)
+    return candidates.decide(ctx.store, ctx.config, ctx.env, number, "retry", note=note, by=ctx.user)
 
 
 @TOOLS.tool("settings_show", "The enricher's tunables now (floors, learned rules, organization aliases, out-of-scope roles, "

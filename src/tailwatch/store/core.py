@@ -249,7 +249,10 @@ class CoreMixin:
         lowered = text.lower()
         if not lowered.startswith(("select", "with")) or ";" in text:
             raise ValueError("only one SELECT statement is allowed")
-        for word in ("insert", "update", "delete", "drop", "alter", "create", "attach", "pragma", "replace", "vacuum", "grant"):
-            if f" {word} " in f" {lowered} " or lowered.startswith(word):
-                raise ValueError(f"{word} is not allowed in a read-only query")
+        import re
+
+        found = re.search(r"\b(insert|update|delete|drop|alter|create|attach|detach|pragma|replace|vacuum|grant|truncate|copy)\b",
+                          lowered)
+        if found:
+            raise ValueError(f"{found.group(1)} is not allowed in a read-only query")
         return self.db.query(f"SELECT * FROM ({text}) AS q LIMIT {int(limit)}")

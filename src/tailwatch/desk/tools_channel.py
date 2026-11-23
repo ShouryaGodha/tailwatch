@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from typing import Any
 
 from tailwatch import util
-from tailwatch.agent.registry import P, ToolContext, Toolbox
+from tailwatch.agent.registry import P, Toolbox, ToolContext
 
 TOOLS = Toolbox("channel")
 

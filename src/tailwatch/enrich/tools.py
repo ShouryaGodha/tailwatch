@@ -311,7 +311,7 @@ class Toolkit:
 
     def _github_headers(self) -> dict[str, str]:
         headers = {"accept": "application/vnd.github+json"}
-        token = str(self.env.get("GITHUB_TOKEN") or "").strip()
+        token = next((t.strip() for t in str(self.env.get("GITHUB_TOKEN") or "").split(",") if t.strip()), "")
         if token:
             headers["authorization"] = f"Bearer {token}"
         return headers
@@ -404,8 +404,10 @@ class Toolkit:
 
         def fetch() -> tuple[dict[str, Any], float]:
             try:
+                key = str(self.env.get("SEMANTIC_SCHOLAR_API_KEY") or "").strip()
                 response = self.http.get(f"{SCHOLAR}/author/search", params={
-                    "query": name, "limit": 5, "fields": "name,affiliations,homepage,url,paperCount,hIndex"})
+                    "query": name, "limit": 5, "fields": "name,affiliations,homepage,url,paperCount,hIndex"},
+                    headers={"x-api-key": key} if key else {})
             except HttpError as error:
                 return {"error": f"Semantic Scholar did not answer: {error}"}, 0.0
             if response.status == 429:

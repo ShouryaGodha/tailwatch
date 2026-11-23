@@ -139,6 +139,18 @@ def respond(store: Any, config: Any, env: Mapping[str, str], *, text: str, user:
     ctx = registry.ToolContext(store=store, config=config, env=env, user=user, mode=mode, channel=channel, thread=thread,
                                root_ids=root_ids)
     trusted = registry.may_write(ctx)
+    spec_base = routines.spec_for(routine, config, instructions=instructions(mode, config, env, available))
+    if row is None:
+        try:
+            run_id = int(store.open_run(routine, subject=util.clip(f"{channel or 'cli'}:{user}", 200),
+                                        key=message_key or None, model=spec_base.model))
+        except Exception:  # the same key opened by a concurrent delivery of the event
+            again = store.run_by_key(message_key) if message_key else None
+            if again is None:
+                raise
+            return {"answer": "", "run_id": again["id"], "state": again["state"], "skills": [], "duplicate": True}
+    else:
+        run_id = int(row["id"])
     checkpoint = row.get("checkpoint") if row else None
     if checkpoint:
         state = loop.Run.from_json(checkpoint)
@@ -164,18 +176,6 @@ def respond(store: Any, config: Any, env: Mapping[str, str], *, text: str, user:
             return {"error": f"no tool named {name} here{hint}"}
         return registry.executor(tools, ctx)(name, args)
 
-    spec_base = routines.spec_for(routine, config, instructions=instructions(mode, config, env, available))
-    if row is None:
-        try:
-            run_id = int(store.open_run(routine, subject=util.clip(f"{channel or 'cli'}:{user}", 200),
-                                        key=message_key or None, model=spec_base.model))
-        except Exception:  # the same key opened by a concurrent delivery of the event
-            again = store.run_by_key(message_key) if message_key else None
-            if again is None:
-                raise
-            return {"answer": "", "run_id": again["id"], "state": again["state"], "skills": [], "duplicate": True}
-    else:
-        run_id = int(row["id"])
 
     def save(run: loop.Run) -> None:
         store.checkpoint_run(run_id, run)

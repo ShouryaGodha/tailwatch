@@ -7,7 +7,7 @@ from __future__ import annotations
 from typing import Any
 
 from tailwatch import util
-from tailwatch.agent.registry import P, ToolContext, Toolbox
+from tailwatch.agent.registry import P, Toolbox, ToolContext
 from tailwatch.desk import custodian, scans
 from tailwatch.desk.tools_core import rename_param
 

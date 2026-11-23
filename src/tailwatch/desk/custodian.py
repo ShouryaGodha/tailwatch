@@ -59,7 +59,8 @@ def drain(store: Any, config: Any, env: Mapping[str, str], *, limit: int = ISSUE
     counts: dict[str, Any] = {"run": 0, "fixed": 0, "noop": 0, "failed": 0, "refused": 0, "deferred": 0, "closed": 0,
                               "reviews_reopened": 0, "reviews_held": 0, "items": []}
     capped: set[str] = set()  # playbooks at a daily cap this tick: their other issues wait too
-    for issue in store.issues(state="open", limit=500):
+    # least recently tried first, so a few failing issues never starve the rest
+    for issue in sorted(store.issues(state="open", limit=1000), key=lambda i: (i["updated_at"], i["id"])):
         if counts["run"] >= limit:
             break
         name = str(issue.get("playbook") or "")

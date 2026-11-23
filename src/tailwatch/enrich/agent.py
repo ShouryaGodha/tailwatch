@@ -119,14 +119,31 @@ def _links_of(values: list[str]) -> dict[str, str]:
     return out
 
 
-def enrich_person(store: Any, config: Any, env: Mapping[str, str], seed: dict[str, Any], *,
-                  toolkit: Toolkit | None = None) -> dict[str, Any]:
+def enrich_person(store: Any, config: Any, env: Mapping[str, str], seed: dict[str, Any] | None = None, *,
+                  toolkit: Toolkit | None = None, person_id: int | None = None, mode: str = "") -> dict[str, Any]:
     """Run the enricher on one seed and check its answer. Writes nothing but the run log.
 
     Returns ``{outcome: verified|needs_review, reason, primary, links (checked), verified
     (kind -> url), name, organization, title, summary, concerns, shared_with, removed, usd,
     model_usd, tool_usd, stopped, tool_calls}``. Raises ``EnrichError`` when the model gave no
-    answer (the failed run is logged with its spend)."""
+    answer (the failed run is logged with its spend).
+
+    Called with ``person_id`` (and ``mode="fill_links"``) instead of a seed, it is the one-person
+    link fill (``links.fill_person``): verified links fill the person's empty kinds and the result
+    carries ``links_added`` (and ``added``, the same kind -> url dict); a failure comes back as ``{"error": ...}``."""
+    if seed is None:
+        if person_id is None or mode not in ("", "fill_links"):
+            raise ValueError("enrich_person needs a seed, or a person_id in fill_links mode")
+        from tailwatch.enrich import links
+
+        person = store.person(int(person_id))
+        if person is None:
+            return {"error": f"no person {person_id}"}
+        try:
+            filled = links.fill_person(store, config, env, person, toolkit=toolkit)
+            return {**filled, "added": filled["links_added"]}
+        except EnrichError as error:
+            return {"error": str(error), "usd": error.usd}
     per_person = float(getattr(getattr(config, "budgets", None), "enrich_per_person", 0.20))
     toolkit = toolkit or Toolkit(store, config, env, budget=loop.Budget(per_person))
     names_offered = toolkit.available()

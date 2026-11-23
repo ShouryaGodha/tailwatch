@@ -95,7 +95,7 @@ class Toolbox:
         self.owner = owner
         self.tools: list[Tool] = []
 
-    def tool(self, name: str, description: str, *, writes: bool = False, mutating: bool | None = None,
+    def tool(self, name: str, description: str, /, *, writes: bool = False, mutating: bool | None = None,
              evidence: bool = False, memo_errors: bool = False, **params: P) -> Callable[[Callable[..., Any]], Callable[..., Any]]:
         schema = {"type": "object", "properties": {k: v.schema() for k, v in params.items()},
                   "required": [k for k, v in params.items() if v.required], "additionalProperties": False}
