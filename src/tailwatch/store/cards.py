@@ -45,9 +45,10 @@ class CardsMixin:
             row["person_tags"] = util.loads(row.get("person_tags"), [])
         return rows
 
-    def posted_moves(self, person_id: int, *, since: str) -> list[dict[str, Any]]:
+    def posted_moves(self, person_id: int, *, since: str, channel: str = "digest") -> list[dict[str, Any]]:
+        """What a channel's digests carried for the person (a shadow trial's receipts are its own)."""
         rows = self.db.query("SELECT p.*, v.signal AS signal, v.now AS now FROM posts p JOIN verdicts v ON v.id = p.verdict_id "
-                             "WHERE p.person_id = ? AND p.at >= ? ORDER BY p.at DESC", [person_id, since])
+                             "WHERE p.person_id = ? AND p.at >= ? AND p.channel = ? ORDER BY p.at DESC", [person_id, since, channel])
         for row in rows:
             row["now"] = util.loads(row.get("now"), {})
         return rows

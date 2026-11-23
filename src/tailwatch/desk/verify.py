@@ -88,6 +88,8 @@ def can_post(store: Any, review: Mapping[str, Any]) -> str:
         return "the verdict is no longer a signal"
     if row["person_status"] != "tracked":
         return "the person is no longer tracked"
+    if verdict_id in store.superseded_ids(since="0000"):
+        return "a newer verdict superseded it"
     if store.posted_on(verdict_id):
         return "a digest carried it already"
     return ""

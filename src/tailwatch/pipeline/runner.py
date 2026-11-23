@@ -58,8 +58,8 @@ def check_source(store: Any, checker: Any, source: Mapping[str, Any], ctx: Check
         read = Read.failed(f"{type(error).__name__}: {error}")
     if read.status == "ok" and before is not None:
         reason = checker.guard(before, read.content)
-        if reason:
-            read = Read.failed(f"failed read: {reason}")
+        if reason:  # a rejected read still cost what it cost
+            read = Read(status="error", error=f"failed read: {reason}", credits=read.credits, usd=read.usd)
     now = util.now()
     cadence = float(source.get("cadence_hours") or checker.cadence_hours)
     events: list[dict[str, Any]] = []

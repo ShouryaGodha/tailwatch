@@ -30,7 +30,7 @@ def guess_kind(value: str) -> str:
         return "bluesky"
     if value.startswith("@"):
         return "x"
-    host, parts = _path_parts(value)
+    host, _parts = _path_parts(value)
     if "linkedin.com" in host:
         return "linkedin"
     if host == "github.com":
@@ -82,7 +82,7 @@ def normalize(kind: str, value: str) -> tuple[str, str]:
         return f"https://www.linkedin.com/in/{slug}", f"linkedin:{slug}"
     if kind == "bluesky":
         handle = value.lstrip("@")
-        if "bsky.app" in handle:
+        if "bsky.app/profile" in handle:
             _host, parts = _path_parts(value)
             handle = parts[1] if len(parts) > 1 else ""
         handle = handle.lower()

@@ -200,7 +200,8 @@ def test_anthropic_adapter_with_a_fake_client() -> None:
         input_tokens, cache_read_input_tokens, cache_creation_input_tokens, output_tokens = 100, 50, 0, 20
 
     class Response:
-        content = [Block(type="text", text="hello"), Block(type="tool_use", id="t1", name="look", input={"q": 1})]
+        content = [  # noqa: RUF012
+            Block(type="text", text="hello"), Block(type="tool_use", id="t1", name="look", input={"q": 1})]
         usage, model, stop_reason = Usage(), "claude-opus-5-5", "tool_use"
 
     seen: dict[str, Any] = {}
@@ -213,7 +214,7 @@ def test_anthropic_adapter_with_a_fake_client() -> None:
     class Client:
         messages = Messages()
 
-        class beta:  # noqa: N801
+        class beta:
             messages = Messages()
 
     adapter = anthropic_adapter.AnthropicAdapter(client_factory=lambda key: Client())

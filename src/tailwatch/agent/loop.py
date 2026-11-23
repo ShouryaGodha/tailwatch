@@ -51,7 +51,7 @@ class LoopError(RuntimeError):
     not the JSON object the routine asked for."""
 
 
-class ToolStop(Exception):  # noqa: N818 - a signal, not an error
+class ToolStop(Exception):
     """A tool that must end the run: ``code`` is NEED_KEY, RATE_LIMITED, BUDGET or similar."""
 
     def __init__(self, code: str, message: str = "") -> None:

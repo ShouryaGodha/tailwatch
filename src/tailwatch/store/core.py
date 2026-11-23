@@ -230,7 +230,7 @@ class CoreMixin:
         return util.loads(row["lines"], []) if row else []
 
     def add_thread_line(self, key: str, line: Mapping[str, Any], keep: int = 30) -> None:
-        lines = (self.thread_lines(key) + [dict(line)])[-keep:]
+        lines = ([*self.thread_lines(key), dict(line)])[-keep:]
         with self.db.transaction():
             if self.db.one("SELECT 1 AS x FROM threads WHERE thread_key = ?", [key]):
                 self.db.update("threads", {"thread_key": key}, {"lines": util.dumps(lines), "updated_at": util.iso()})

@@ -58,10 +58,10 @@ def no_move(row: Mapping[str, Any], pack: packs.Pack) -> bool:
     return bool(before) and before == after and row["signal"] == pack.names[0]
 
 
-def reposted(store: Any, row: Mapping[str, Any], pack: packs.Pack, days: int) -> bool:
+def reposted(store: Any, row: Mapping[str, Any], pack: packs.Pack, days: int, channel: str = CHANNEL) -> bool:
     if days <= 0:
         return False
-    posted = store.posted_moves(row["person_id"], since=util.ago(days=days))
+    posted = store.posted_moves(row["person_id"], since=util.ago(days=days), channel=channel)
     keys = {p["move_key"] for p in posted}
     ids = {p["verdict_id"] for p in posted}
     return move_key(row, pack) in keys or int(row.get("same_as") or 0) in ids
@@ -70,6 +70,30 @@ def reposted(store: Any, row: Mapping[str, Any], pack: packs.Pack, days: int) ->
 def released(store: Any, verdict_id: int) -> bool:
     review = store.review_for(verdict_id)
     return bool(review) and review["state"] == "verified"
+
+
+def passes_gate(store: Any, config: Any, verdict_id: int) -> bool:
+    """Verified by the editor, and still passing the floors that need no fetch at post time."""
+    if not released(store, verdict_id):
+        return False
+    try:
+        from tailwatch.desk.verify import post_time_check
+    except ImportError:
+        return True
+    return post_time_check(store, config, verdict_id)
+
+
+def with_review(store: Any, row: dict[str, Any]) -> dict[str, Any]:
+    """A verified review can carry a landing (where the person already started) and a repaired
+    role line; the card shows them."""
+    review = store.review_for(row["id"])
+    answer = (review or {}).get("answer") or {}
+    if review and review["state"] == "verified":
+        if answer.get("landed"):
+            row = {**row, "landed": answer["landed"]}
+        if answer.get("context"):
+            row = {**row, "context": answer["context"]}
+    return row
 
 
 def person_released(store: Any, verdict_id: int) -> bool:
@@ -98,12 +122,12 @@ def select(store: Any, config: Any, pack: packs.Pack, *, channel: str = CHANNEL,
             drop("stale")
         elif no_move(row, pack):
             drop("no move")
-        elif reposted(store, row, pack, config.digest.repost_days):
+        elif reposted(store, row, pack, config.digest.repost_days, channel):
             drop("already posted")
-        elif verified_only and not released(store, row["id"]):
+        elif verified_only and not passes_gate(store, config, row["id"]):
             drop("waiting for the editor")
         else:
-            kept.append(row)
+            kept.append(with_review(store, row))
     by_person: dict[int, dict[str, Any]] = {}
     for row in sorted(kept, key=lambda r: (pack.order(r["signal"]), r["observed_at"]), reverse=False):
         by_person.setdefault(row["person_id"], row)

@@ -177,12 +177,14 @@ class ChecksMixin:
         return int(newest or 0) == verdict_id
 
     def prior_alerts(self, person_id: int, *, since: str) -> list[dict[str, Any]]:
-        """The person's earlier signals (current verdicts that are not none), newest first, with
-        the source kind and whether a digest carried them: the judge's authority on duplicates."""
+        """The person's earlier signals (current verdicts that are not none, plus a person's or the
+        desk's drops, so a dropped card is remembered), newest first, with the source kind and
+        whether a digest carried them: the judge's authority on duplicates."""
         rows = self.db.query(
             "SELECT v.*, s.kind AS kind, (SELECT COUNT(*) FROM posts p WHERE p.verdict_id = v.id) AS posted "
             "FROM verdicts v JOIN (" + CURRENT + ") cur ON cur.id = v.id JOIN observations o ON o.id = v.observation_id "
-            "JOIN sources s ON s.id = o.source_id WHERE v.person_id = ? AND v.signal != 'none' AND v.created_at >= ? "
+            "JOIN sources s ON s.id = o.source_id WHERE v.person_id = ? AND v.created_at >= ? "
+            "AND (v.signal != 'none' OR v.judged_by IN ('human', 'desk')) "
             "ORDER BY v.id DESC LIMIT 20", [person_id, since])
         return [_verdict(r) for r in rows]  # type: ignore[misc]
 

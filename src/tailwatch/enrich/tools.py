@@ -49,8 +49,8 @@ NO_READ_HOSTS = ("linkedin.com", "scholar.google.com", "x.com", "twitter.com")
 _STR = {"type": "string"}
 
 
-def _spec(name: str, description: str, required: Iterable[str] = (), **properties: Any) -> dict[str, Any]:
-    return {"name": name, "description": description,
+def _spec(tool: str, description: str, required: Iterable[str] = (), /, **properties: Any) -> dict[str, Any]:
+    return {"name": tool, "description": description,
             "input_schema": {"type": "object", "properties": properties, "required": list(required),
                              "additionalProperties": False}}
 

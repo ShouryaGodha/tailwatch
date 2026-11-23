@@ -248,7 +248,8 @@ def run_demo(*, console: Any = None, keep: bool = False) -> dict[str, Any]:
     previous_adapter = model_client._adapters.get("scripted")
     model_client.register_adapter("scripted", adapter)
     env: dict[str, str] = {}
-    log = (lambda _m: None)
+    def log(_m):
+        return (None)
 
     def step(title: str, note: str = "") -> None:
         console.rule(f"[bold cyan]{title}")

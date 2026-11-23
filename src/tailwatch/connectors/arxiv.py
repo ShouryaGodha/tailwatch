@@ -14,6 +14,7 @@ has none) names a different place.
 from __future__ import annotations
 
 import re
+import time
 from collections.abc import Mapping
 from typing import Any, ClassVar
 
@@ -33,6 +34,21 @@ from tailwatch.connectors.http import HttpError
 
 API = "http://export.arxiv.org/api/query"
 PAPERS = 20
+TIMEOUT_S = 60.0  # the arXiv API often takes 20-40 seconds
+PACE_S = 3.1  # arXiv asks for one request every three seconds
+_last_call = 0.0
+
+
+def _pace(ctx: CheckContext) -> None:
+    """Wait out arXiv's three-second rule between real API calls (not under a test transport)."""
+    global _last_call
+    from tailwatch.connectors.http import httpx_transport
+
+    if ctx.http.transport is httpx_transport:
+        wait = PACE_S - (time.monotonic() - _last_call)
+        if wait > 0:
+            time.sleep(wait)
+    _last_call = time.monotonic()
 
 
 def _tokens(text: str) -> set[str]:
@@ -126,7 +142,8 @@ class ArxivChecker(BaseChecker):
             "sortOrder": "descending",
             "max_results": PAPERS,
         }
-        response = ctx.http.get(API, params=params)
+        _pace(ctx)
+        response = ctx.http.get(API, params=params, timeout=TIMEOUT_S)
         if response.status != 200:
             return "", f"arXiv API answered HTTP {response.status}"
         return response.text, ""
@@ -139,7 +156,8 @@ class ArxivChecker(BaseChecker):
             elif "arxiv.org/a/" in url:
                 author_id = url.rstrip("/").rsplit("/", 1)[-1].removesuffix(".atom2").removesuffix(".html")
                 who = author_id.replace("_", " ")
-                response = ctx.http.get(f"https://arxiv.org/a/{author_id}.atom2")
+                _pace(ctx)
+                response = ctx.http.get(f"https://arxiv.org/a/{author_id}.atom2", timeout=TIMEOUT_S)
                 if response.status in (404, 410):
                     return Read(status="gone", error=f"arXiv has no author page {author_id}")
                 xml_text, error = response.text, ""

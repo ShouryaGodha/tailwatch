@@ -5,15 +5,15 @@ from __future__ import annotations
 from typing import Any
 
 from tailwatch.store.cards import CardsMixin
-from tailwatch.store.custodian import CustodianMixin
-from tailwatch.store.enrich import EnrichMixin
-from tailwatch.store.maintenance import MaintenanceMixin
-from tailwatch.store.review import ReviewMixin
 from tailwatch.store.checks import ChecksMixin
 from tailwatch.store.core import CoreMixin, LockBusy
+from tailwatch.store.custodian import CustodianMixin
 from tailwatch.store.db import Database
 from tailwatch.store.desk import DeskMixin
+from tailwatch.store.enrich import EnrichMixin
+from tailwatch.store.maintenance import MaintenanceMixin
 from tailwatch.store.people import PeopleMixin
+from tailwatch.store.review import ReviewMixin
 
 __all__ = ["Database", "LockBusy", "Store", "open_store"]
 

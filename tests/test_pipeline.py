@@ -7,7 +7,6 @@ import json
 from typing import Any
 
 from conftest import FakeChecker, verdict
-
 from tailwatch import util
 from tailwatch.pipeline import digest, judge, runner
 from tailwatch.store import open_store
@@ -156,3 +155,23 @@ def test_store_on_disk_survives_reopen(tmp_path: Any, config: Any) -> None:
     first.add_person("Grace Hopper", links={"github": "https://github.com/grace"})
     second = open_store(url, config)
     assert second.find_people("grace")[0]["name"] == "Grace Hopper"
+
+
+def test_a_superseding_verdict_replaces_the_earlier_card(store: Any, config: Any) -> None:
+    person_id, source_id = _person(store)
+    first = store.record_check(store.source(source_id), status="ok", content={}, changes=[{"label": "bio changed"}])
+    weak = store.save_verdict(first, person_id, verdict("left", summary="weak"))
+    second = store.record_check(store.source(source_id), status="ok", content={}, changes=[{"label": "text changed"}])
+    store.save_verdict(second, person_id, verdict("left", summary="strong", supersedes=[weak]))
+    built = digest.build(store, config, {}, rank=False)
+    assert [c["summary"] for s in built["sections"] for c in s["cards"]] == ["strong"]
+    assert built["dropped"] == {"superseded": 1}
+
+
+def test_a_none_verdict_can_retract_an_earlier_alert(store: Any, config: Any) -> None:
+    person_id, source_id = _person(store)
+    first = store.record_check(store.source(source_id), status="ok", content={}, changes=[{"label": "bio changed"}])
+    alert = store.save_verdict(first, person_id, verdict("left"))
+    second = store.record_check(store.source(source_id), status="ok", content={}, changes=[{"label": "text changed"}])
+    store.save_verdict(second, person_id, verdict("none", supersedes=[alert]))
+    assert digest.build(store, config, {}, rank=False)["sections"] == []

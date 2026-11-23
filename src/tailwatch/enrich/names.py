@@ -80,9 +80,8 @@ def level(given: object, found: object) -> str:
         return "variant" if len(a) == len(b) == 1 and same_first(a[0], b[0]) else "different"
     fa, la, fb, lb = a[0], a[-1], b[0], b[-1]
     # a middle name dropped, a nickname, a compound surname cut to one of its parts
-    if same_first(fa, fb) and (la == lb or (len(lb) > 1 and lb in a[1:]) or (len(la) > 1 and la in b[1:])):
-        if len(la) > 1 and len(lb) > 1:
-            return "variant"
+    if same_first(fa, fb) and len(la) > 1 and len(lb) > 1 and (la == lb or lb in a[1:] or la in b[1:]):
+        return "variant"
     # the family name first on one side ("Zhang Wei" / "Wei Zhang")
     if same_first(fa, lb) and la == fb and len(la) > 1 and len(fb) > 1:
         return "variant"
