@@ -54,15 +54,64 @@ def round2(value: Any) -> int:
 
 # --------------------------------------------------------------------------- HTML
 
-_BLOCK = frozenset({
-    "address", "article", "aside", "blockquote", "body", "br", "caption", "dd", "details", "div",
-    "dl", "dt", "figcaption", "figure", "form", "h1", "h2", "h3", "h4", "h5", "h6", "header", "hr",
-    "li", "main", "ol", "p", "pre", "section", "summary", "table", "tr", "ul"})
+_BLOCK = frozenset(
+    {
+        "address",
+        "article",
+        "aside",
+        "blockquote",
+        "body",
+        "br",
+        "caption",
+        "dd",
+        "details",
+        "div",
+        "dl",
+        "dt",
+        "figcaption",
+        "figure",
+        "form",
+        "h1",
+        "h2",
+        "h3",
+        "h4",
+        "h5",
+        "h6",
+        "header",
+        "hr",
+        "li",
+        "main",
+        "ol",
+        "p",
+        "pre",
+        "section",
+        "summary",
+        "table",
+        "tr",
+        "ul",
+    }
+)
 _INLINE_GAP = frozenset({"a", "span", "time", "label", "small", "cite", "abbr", "button", "td", "th"})
 # Never readable content: code, styling, menus, and the footer (copyright lines, counters).
 _SKIP = frozenset({"script", "style", "noscript", "template", "svg", "nav", "footer", "head", "iframe"})
-_VOID = frozenset({"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta",
-                   "param", "source", "track", "wbr"})
+_VOID = frozenset(
+    {
+        "area",
+        "base",
+        "br",
+        "col",
+        "embed",
+        "hr",
+        "img",
+        "input",
+        "link",
+        "meta",
+        "param",
+        "source",
+        "track",
+        "wbr",
+    }
+)
 
 
 class _Readable(HTMLParser):
@@ -82,6 +131,8 @@ class _Readable(HTMLParser):
             self._in_title = True
         if tag == "a" and values.get("href"):
             self.links.append(values["href"])
+        if tag == "body" and self._skip[:1] == ["head"]:
+            self._skip = []  # a <head> never closed ends where the body starts
         if self._skip:
             if tag == self._skip[-1] and tag not in _VOID:
                 self._skip.append(tag)
@@ -145,16 +196,24 @@ def strip_html(fragment: Any) -> str:
 
 
 _MONTH = r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?"
-_DATE = (r"(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}"
-         rf"|{_MONTH}\s+\d{{1,2}}(?:st|nd|rd|th)?,?\s+\d{{4}}|\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTH},?\s+\d{{4}}"
-         rf"|{_MONTH},?\s+\d{{4}}|\d{{4}})")
-_MASKS = [(re.compile(pattern), replacement) for pattern, replacement in [
-    (r"(?i)((?:©|\(c\)|copyright)\s*©?\s*)\d{4}(?:\s*[-–—]\s*\d{4})?", r"\1<YEAR>"),
-    (r"(?i)((?:last\s+)?(?:updated|modified|revised|built|generated)(?:\s+on|\s+at)?\s*[:\-–]?\s*)" + _DATE,
-     r"\1<DATE>"),
-    (r"(?i)((?:visitors?|visits|hits|page\s*views?)\s*[:#]?\s*)\d[\d,.]*k?\b", r"\1<N>"),
-    (r"(?i)\b\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago\b", "<AGO>"),
-]]
+_DATE = (
+    r"(?:\d{4}[-/.]\d{1,2}[-/.]\d{1,2}|\d{1,2}[-/.]\d{1,2}[-/.]\d{2,4}"
+    rf"|{_MONTH}\s+\d{{1,2}}(?:st|nd|rd|th)?,?\s+\d{{4}}|\d{{1,2}}(?:st|nd|rd|th)?\s+{_MONTH},?\s+\d{{4}}"
+    rf"|{_MONTH},?\s+\d{{4}}|\d{{4}})"
+)
+_MASKS = [
+    (re.compile(pattern), replacement)
+    for pattern, replacement in [
+        (r"(?i)((?:©|\(c\)|copyright)\s*©?\s*)\d{4}(?:\s*[-–—]\s*\d{4})?", r"\1<YEAR>"),
+        (
+            r"(?i)((?:last\s+)?(?:updated|modified|revised|built|generated)(?:\s+on|\s+at)?\s*[:\-–]?\s*)"
+            + _DATE,
+            r"\1<DATE>",
+        ),
+        (r"(?i)((?:visitors?|visits|hits|page\s*views?)\s*[:#]?\s*)\d[\d,.]*k?\b", r"\1<N>"),
+        (r"(?i)\b\d+\s+(?:second|minute|hour|day|week|month|year)s?\s+ago\b", "<AGO>"),
+    ]
+]
 
 
 def mask_volatile(line: str) -> str:
@@ -164,7 +223,9 @@ def mask_volatile(line: str) -> str:
     return line
 
 
-_ABBREVIATIONS = re.compile(r"(?i)\b(?:Ph\.\s?D|Dr|Prof|Mr|Ms|Mrs|Jr|Sr|St|Inc|Corp|Univ|Dept|e\.g|i\.e|vs|etc|U\.S)\.")
+_ABBREVIATIONS = re.compile(
+    r"(?i)\b(?:Ph\.\s?D|Dr|Prof|Mr|Ms|Mrs|Jr|Sr|St|Inc|Corp|Univ|Dept|e\.g|i\.e|vs|etc|U\.S)\."
+)
 
 
 def sentences(text: str) -> list[str]:
@@ -259,6 +320,7 @@ class FeedEntry:
     date: str
     summary: str
     authors: list[str] = field(default_factory=list)
+    links: list[str] = field(default_factory=list)  # links inside the summary or content HTML
     element: ET.Element | None = None  # the entry itself, for source-specific fields
 
 
@@ -287,12 +349,21 @@ def parse_feed(text: str) -> ParsedFeed:
         title, url = child_text(root, "title"), _atom_link(root)
         for entry in children(root, "entry"):
             link = _atom_link(entry)
-            entries.append(FeedEntry(
-                id=child_text(entry, "id") or link, title=child_text(entry, "title"), url=link,
-                date=iso_date(child_text(entry, "published", "updated")),
-                summary=strip_html(child_text(entry, "summary", "content")),
-                authors=[child_text(a, "name") for a in children(entry, "author") if child_text(a, "name")],
-                element=entry))
+            body = html_page(child_text(entry, "summary", "content"), link)
+            entries.append(
+                FeedEntry(
+                    id=child_text(entry, "id") or link,
+                    title=child_text(entry, "title"),
+                    url=link,
+                    date=iso_date(child_text(entry, "published", "updated")),
+                    summary=clean(body.text.replace("\n", " ")),
+                    authors=[
+                        child_text(a, "name") for a in children(entry, "author") if child_text(a, "name")
+                    ],
+                    links=body.links,
+                    element=entry,
+                )
+            )
     elif kind in ("rss", "RDF"):
         channel = child(root, "channel")
         if channel is None:
@@ -301,13 +372,19 @@ def parse_feed(text: str) -> ParsedFeed:
         items = children(channel, "item") or children(root, "item")  # RSS 1.0 puts items at the root
         for item in items:
             link = child_text(item, "link")
-            entries.append(FeedEntry(
-                id=child_text(item, "guid") or link or child_text(item, "title"),
-                title=child_text(item, "title"), url=link,
-                date=iso_date(child_text(item, "pubDate", "date", "published", "updated")),
-                summary=strip_html(child_text(item, "description", "encoded")),
-                authors=[a for a in (child_text(item, "author", "creator"),) if a],
-                element=item))
+            body = html_page(child_text(item, "description", "encoded"), link)
+            entries.append(
+                FeedEntry(
+                    id=child_text(item, "guid") or link or child_text(item, "title"),
+                    title=child_text(item, "title"),
+                    url=link,
+                    date=iso_date(child_text(item, "pubDate", "date", "published", "updated")),
+                    summary=clean(body.text.replace("\n", " ")),
+                    authors=[a for a in (child_text(item, "author", "creator"),) if a],
+                    links=body.links,
+                    element=item,
+                )
+            )
     else:
         raise ValueError(f"not an RSS or Atom feed (root element <{kind}>)")
     order = {id(e): i for i, e in enumerate(entries)}
@@ -317,10 +394,38 @@ def parse_feed(text: str) -> ParsedFeed:
 
 # --------------------------------------------------------------------------- handles and links
 
-_X_RESERVED = {"i", "intent", "home", "search", "share", "hashtag", "explore", "settings", "messages",
-               "notifications", "login", "signup", "compose", "status"}
-_GITHUB_RESERVED = {"orgs", "settings", "about", "features", "topics", "explore", "marketplace",
-                    "sponsors", "login", "join", "search", "notifications", "pulls", "issues"}
+_X_RESERVED = {
+    "i",
+    "intent",
+    "home",
+    "search",
+    "share",
+    "hashtag",
+    "explore",
+    "settings",
+    "messages",
+    "notifications",
+    "login",
+    "signup",
+    "compose",
+    "status",
+}
+_GITHUB_RESERVED = {
+    "orgs",
+    "settings",
+    "about",
+    "features",
+    "topics",
+    "explore",
+    "marketplace",
+    "sponsors",
+    "login",
+    "join",
+    "search",
+    "notifications",
+    "pulls",
+    "issues",
+}
 _URL = re.compile(r"https?://[^\s<>\"'()\[\]]+", re.IGNORECASE)
 _AT = re.compile(r"(?<![\w@./])@([A-Za-z0-9_]{1,15})(?![\w@])")
 _SKIP_HOSTS = ("t.co", "bit.ly", "pic.twitter.com", "news.ycombinator.com", "youtu.be", "youtube.com")
@@ -334,13 +439,19 @@ def link_kind(url: str) -> tuple[str, str]:
     host = (parts.hostname or "").lower().removeprefix("www.").removeprefix("m.")
     segments = [s for s in parts.path.split("/") if s]
     if host in ("x.com", "twitter.com"):
-        if len(segments) == 1 and re.fullmatch(r"[A-Za-z0-9_]{1,15}", segments[0]) \
-                and segments[0].lower() not in _X_RESERVED:
+        if (
+            len(segments) == 1
+            and re.fullmatch(r"[A-Za-z0-9_]{1,15}", segments[0])
+            and segments[0].lower() not in _X_RESERVED
+        ):
             return "x", segments[0].lower()
         return "", ""
     if host == "github.com":
-        if 1 <= len(segments) <= 2 and segments[0].lower() not in _GITHUB_RESERVED \
-                and re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})", segments[0]):
+        if (
+            1 <= len(segments) <= 2
+            and segments[0].lower() not in _GITHUB_RESERVED
+            and re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,38})", segments[0])
+        ):
             return "github", segments[0].lower()
         return "", ""
     if host.endswith("linkedin.com"):
@@ -365,9 +476,14 @@ def at_handles(text: str) -> list[str]:
     return list(dict.fromkeys(m.lower() for m in _AT.findall(text or "")))
 
 
-def mentions(text: str = "", urls: Iterable[str] = (), *, x_handles: Iterable[str] = (),
-             bluesky_handles: Iterable[str] = (), exclude: Mapping[str, Iterable[str]] | None = None
-             ) -> dict[str, list[str]]:
+def mentions(
+    text: str = "",
+    urls: Iterable[str] = (),
+    *,
+    x_handles: Iterable[str] = (),
+    bluesky_handles: Iterable[str] = (),
+    exclude: Mapping[str, Iterable[str]] | None = None,
+) -> dict[str, list[str]]:
     """``kind -> handles/urls`` an item points at: profile links in the text and in ``urls``,
     plus handles a source already parsed. ``exclude`` drops the announcer's own handles.
     Kinds with nothing are left out; values keep first-seen order."""
@@ -407,8 +523,14 @@ def flag_change(label: str, before: Any, after: Any) -> list[Change]:
     return [Change(label, "yes" if before else "no", "yes" if after else "no")]
 
 
-def unseen(before: Sequence[Mapping[str, Any]], after: Sequence[Mapping[str, Any]], *, cap: int,
-           key: str = "id", date: str = "date") -> list[Mapping[str, Any]]:
+def unseen(
+    before: Sequence[Mapping[str, Any]],
+    after: Sequence[Mapping[str, Any]],
+    *,
+    cap: int,
+    key: str = "id",
+    date: str = "date",
+) -> list[Mapping[str, Any]]:
     """Items of ``after`` whose ``key`` ``before`` did not have, oldest first.
 
     When ``before`` was a full window (``cap`` items), an unseen item older than the oldest one
@@ -418,6 +540,9 @@ def unseen(before: Sequence[Mapping[str, Any]], after: Sequence[Mapping[str, Any
     if len(before) >= cap:
         dates = [str(item.get(date) or "") for item in before]
         floor = min(dates) if all(dates) else ""
-    fresh = [item for item in after if str(item.get(key)) not in seen
-             and (not floor or str(item.get(date) or "") >= floor)]
+    fresh = [
+        item
+        for item in after
+        if str(item.get(key)) not in seen and (not floor or str(item.get(date) or "") >= floor)
+    ]
     return sorted(fresh, key=lambda item: str(item.get(date) or ""))

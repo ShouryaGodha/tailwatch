@@ -1,0 +1,24 @@
+# docker compose up            -> tailwatch with SQLite in ./data
+# docker compose --profile postgres up   -> with Postgres (set database: postgresql://tailwatch:tailwatch@db/tailwatch)
+services:
+  tailwatch:
+    build: .
+    restart: unless-stopped
+    env_file: ./data/.env
+    volumes:
+      - ./data:/data
+    command: ["up"]
+
+  db:
+    image: postgres:16-alpine
+    profiles: [postgres]
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: tailwatch
+      POSTGRES_PASSWORD: tailwatch
+      POSTGRES_DB: tailwatch
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

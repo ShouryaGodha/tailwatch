@@ -23,7 +23,15 @@ from collections.abc import Mapping
 from typing import Any, ClassVar
 from urllib.parse import urlsplit
 
-from tailwatch.connectors._text import clean, clip, has_sentence, html_page, link_kind, mask_volatile, sentences
+from tailwatch.connectors._text import (
+    clean,
+    clip,
+    has_sentence,
+    html_page,
+    link_kind,
+    mask_volatile,
+    sentences,
+)
 from tailwatch.connectors.base import BaseChecker, Change, CheckContext, Read
 from tailwatch.connectors.http import HttpError
 
@@ -32,17 +40,27 @@ CHANGE_CAP = 4_000  # characters of removed / added sentences in one change
 MIN_TEXT = 200
 BROWSER_HEADERS = {
     "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
-                  "Chrome/124.0 Safari/537.36 tailwatch",
-    "Accept": "text/html,application/xhtml+xml,*/*;q=0.8", "Accept-Language": "en-US,en;q=0.8"}
-CHALLENGE = re.compile(r"(?i)just a moment\.\.\.|attention required!? \| cloudflare|checking your browser"
-                       r"|verify you are (?:a )?human|captcha|enable javascript and cookies to continue"
-                       r"|ddos protection by")
-PARKED = re.compile(r"(?i)domain (?:name )?(?:is|may be) for sale|buy this domain|this domain (?:has expired|is parked)"
-                    r"|parked (?:free|domain)|domain parking|this domain is available")
-PARK_HOSTS = re.compile(r"(?:^|\.)(?:(?:sedoparking|sedo|hugedomains|dan|afternic|bodis|above|domainmarket)\.com"
-                        r"|parkingcrew\.net)$")
-SHELL = re.compile(r"(?i)\b(?:enable|requires?|turn on) javascript|application error|something went wrong"
-                   r"|index of /")
+    "Chrome/124.0 Safari/537.36 tailwatch",
+    "Accept": "text/html,application/xhtml+xml,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.8",
+}
+CHALLENGE = re.compile(
+    r"(?i)just a moment\.\.\.|attention required!? \| cloudflare|checking your browser"
+    r"|verify you are (?:a )?human|captcha|enable javascript and cookies to continue"
+    r"|ddos protection by"
+)
+PARKED = re.compile(
+    r"(?i)domain (?:name )?(?:is|may be) for sale|buy this domain|this domain (?:has expired|is parked)"
+    r"|parked (?:free|domain)|domain parking|this domain is available"
+)
+PARK_HOSTS = re.compile(
+    r"(?:^|\.)(?:(?:sedoparking|sedo|hugedomains|dan|afternic|bodis|above|domainmarket)\.com"
+    r"|parkingcrew\.net)$"
+)
+SHELL = re.compile(
+    r"(?i)\b(?:enable|requires?|turn on) javascript|application error|something went wrong"
+    r"|index of /"
+)
 
 
 def _markdown_text(markdown: str) -> str:
@@ -60,7 +78,7 @@ def _tail(longer: list[str], cut: list[str]) -> set[str]:
     if not cut or cut[-1] not in longer:
         return set()
     end = len(longer) - 1 - longer[::-1].index(cut[-1])
-    return set(longer[end + 1:])
+    return set(longer[end + 1 :])
 
 
 class HomepageChecker(BaseChecker):
@@ -92,9 +110,14 @@ class HomepageChecker(BaseChecker):
             title, text = clean(title_match.group(1) if title_match else ""), _markdown_text(response.text)
             links = re.findall(r"\]\((https?://[^)\s]+)\)", response.text)
         else:
-            content_type = str({k.lower(): v for k, v in (response.headers or {}).items()}.get("content-type", ""))
-            if content_type and not re.search(r"(?i)html|xml|text/", content_type) \
-                    and not response.text.lstrip().startswith("<"):
+            content_type = str(
+                {k.lower(): v for k, v in (response.headers or {}).items()}.get("content-type", "")
+            )
+            if (
+                content_type
+                and not re.search(r"(?i)html|xml|text/", content_type)
+                and not response.text.lstrip().startswith("<")
+            ):
                 return Read.failed(f"not an HTML page ({content_type})")
             page = html_page(response.text, final)
             title, text, links = page.title, page.text, page.links
@@ -109,8 +132,13 @@ class HomepageChecker(BaseChecker):
         if truncated:  # cut at a line end so no sentence is stored half
             cut = text.rfind("\n", 0, TEXT_CAP)
             text = text[: cut if cut > TEXT_CAP // 2 else TEXT_CAP]
-        profiles = sorted({f"{kind}:{value}" for kind, value in (link_kind(u) for u in links)
-                           if kind and kind != "homepage"})
+        profiles = sorted(
+            {
+                f"{kind}:{value}"
+                for kind, value in (link_kind(u) for u in links)
+                if kind and kind != "homepage"
+            }
+        )
         content: dict[str, Any] = {"url": url, "title": title, "text": text, "links": profiles}
         if truncated:
             content["truncated"] = True
@@ -118,8 +146,11 @@ class HomepageChecker(BaseChecker):
         if prev and len(text) < MIN_TEXT:
             # A short page standing in for a full one (maintenance, "back soon") carries the full
             # page's sentences, so the full page coming back does not read as all new.
-            content["seen_before"] = (list(prev.get("seen_before") or []) if len(prev.get("text") or "") < MIN_TEXT
-                                      else list(dict.fromkeys(sentences(prev.get("text") or ""))))
+            content["seen_before"] = (
+                list(prev.get("seen_before") or [])
+                if len(prev.get("text") or "") < MIN_TEXT
+                else list(dict.fromkeys(sentences(prev.get("text") or "")))
+            )
         return Read(status="ok", content=content, raw={"status": response.status, "url": final})
 
     def guard(self, before: Mapping[str, Any], after: Mapping[str, Any]) -> str:
@@ -143,14 +174,23 @@ class HomepageChecker(BaseChecker):
             if before.get("truncated"):
                 added = [s for s in added if s not in _tail(new, old)]
             if removed or added:
-                changes.append(Change("text changed", clip("\n".join(removed), CHANGE_CAP),
-                                      clip("\n".join(added), CHANGE_CAP)))
+                changes.append(
+                    Change(
+                        "text changed",
+                        clip("\n".join(removed), CHANGE_CAP),
+                        clip("\n".join(added), CHANGE_CAP),
+                    )
+                )
         was, now = set(before.get("links") or []), set(after.get("links") or [])
         if was != now:
-            changes.append(Change("profile links changed", "\n".join(sorted(was - now)), "\n".join(sorted(now - was))))
+            changes.append(
+                Change("profile links changed", "\n".join(sorted(was - now)), "\n".join(sorted(now - was)))
+            )
         return changes
 
     def describe(self, content: Mapping[str, Any]) -> str:
-        head = f"Homepage {content.get('url', '')}" + (f" — {content['title']}" if content.get("title") else "")
+        head = f"Homepage {content.get('url', '')}" + (
+            f" — {content['title']}" if content.get("title") else ""
+        )
         links = f"\nProfile links: {', '.join(content['links'])}" if content.get("links") else ""
         return clip(f"{head}{links}\n\n{content.get('text', '')}", 4000)

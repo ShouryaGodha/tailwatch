@@ -19,8 +19,14 @@ from tailwatch.connectors.http import HttpError, Response
 
 APPVIEW = "https://public.api.bsky.app/xrpc"
 POSTS = 20
-GONE_ERRORS = ("profile not found", "accounttakedown", "accountdeactivated", "actor not found",
-               "unable to resolve handle", "could not find user")
+GONE_ERRORS = (
+    "profile not found",
+    "accounttakedown",
+    "accountdeactivated",
+    "actor not found",
+    "unable to resolve handle",
+    "could not find user",
+)
 
 
 def handle_of(url: str) -> str:
@@ -49,9 +55,14 @@ def own_posts(feed: Any, did: str, handle: str) -> list[dict[str, Any]]:
         uri = str(post.get("uri") or "")
         if not uri:
             continue
-        posts.append({"id": uri, "text": clean(record.get("text")),
-                      "date": iso_date(record.get("createdAt") or post.get("indexedAt")),
-                      "url": post_url(handle, uri)})
+        posts.append(
+            {
+                "id": uri,
+                "text": clean(record.get("text")),
+                "date": iso_date(record.get("createdAt") or post.get("indexedAt")),
+                "url": post_url(handle, uri),
+            }
+        )
     posts.sort(key=lambda p: (p["date"], p["id"]), reverse=True)
     return posts
 
@@ -82,21 +93,31 @@ class BlueskyChecker(BaseChecker):
                 if profile.status in (400, 404) and any(g in message.lower() for g in GONE_ERRORS):
                     return Read(status="gone", error=f"Bluesky: {message}")
                 outage = "rate limited" if profile.status == 429 else ""
-                return Read.failed(f"Bluesky profile answered HTTP {profile.status}: {message}".strip(), outage=outage)
-            feed = ctx.http.get(f"{APPVIEW}/app.bsky.feed.getAuthorFeed",
-                                params={"actor": handle, "limit": POSTS, "filter": "posts_with_replies"})
+                return Read.failed(
+                    f"Bluesky profile answered HTTP {profile.status}: {message}".strip(), outage=outage
+                )
+            feed = ctx.http.get(
+                f"{APPVIEW}/app.bsky.feed.getAuthorFeed",
+                params={"actor": handle, "limit": POSTS, "filter": "posts_with_replies"},
+            )
             if feed.status != 200:
-                return Read.failed(f"Bluesky feed answered HTTP {feed.status}: {_error_text(feed)}".strip(),
-                                   outage="rate limited" if feed.status == 429 else "")
+                return Read.failed(
+                    f"Bluesky feed answered HTTP {feed.status}: {_error_text(feed)}".strip(),
+                    outage="rate limited" if feed.status == 429 else "",
+                )
             user, posts_json = profile.json(), feed.json()
         except HttpError as error:
             return Read.failed(str(error))
         except ValueError as error:
             return Read.failed(f"Bluesky answered something that is not JSON: {error}")
         did = str(user.get("did") or "")
-        content = {"handle": clean(user.get("handle")).lower() or handle, "did": did,
-                   "name": clean(user.get("displayName")), "bio": clean(user.get("description")),
-                   "posts": own_posts(posts_json, did, handle)[:POSTS]}
+        content = {
+            "handle": clean(user.get("handle")).lower() or handle,
+            "did": did,
+            "name": clean(user.get("displayName")),
+            "bio": clean(user.get("description")),
+            "posts": own_posts(posts_json, did, handle)[:POSTS],
+        }
         return Read(status="ok", content=content, raw={"profile": user})
 
     def guard(self, before: Mapping[str, Any], after: Mapping[str, Any]) -> str:
@@ -109,9 +130,17 @@ class BlueskyChecker(BaseChecker):
             return []  # a different account behind the handle: a new baseline, not a change
         changes = text_change("name changed", before.get("name"), after.get("name"))
         changes += text_change("bio changed", before.get("bio"), after.get("bio"))
-        for post in unseen(before.get("posts") or [], after.get("posts") or [], cap=POSTS):
-            changes.append(Change("new post", "", f"{post.get('text')}\n{post.get('url')}".strip(),
-                                  str(post.get("date") or "")[:10]))
+        # Posts are never backdated, so anything older than the oldest post seen slid into the
+        # window after a deletion (or a repost dropped out): never new.
+        for post in unseen(before.get("posts") or [], after.get("posts") or [], cap=1):
+            changes.append(
+                Change(
+                    "new post",
+                    "",
+                    f"{post.get('text')}\n{post.get('url')}".strip(),
+                    str(post.get("date") or "")[:10],
+                )
+            )
         return changes
 
     def describe(self, content: Mapping[str, Any]) -> str:

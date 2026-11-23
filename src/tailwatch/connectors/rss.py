@@ -26,7 +26,12 @@ class RssChecker(BaseChecker):
 
     def read(self, url: str, previous: Mapping[str, Any] | None, ctx: CheckContext) -> Read:
         try:
-            response = ctx.http.get(url, headers={"Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.5"})
+            response = ctx.http.get(
+                url,
+                headers={
+                    "Accept": "application/rss+xml, application/atom+xml, application/xml;q=0.9, */*;q=0.5"
+                },
+            )
         except HttpError as error:
             return Read.failed(str(error))
         if response.status in (404, 410):
@@ -37,8 +42,10 @@ class RssChecker(BaseChecker):
             feed = parse_feed(response.text)
         except ValueError as error:
             return Read.failed(str(error))
-        posts = [{"id": e.id, "title": e.title, "text": clip(e.summary, SUMMARY), "date": e.date, "url": e.url}
-                 for e in feed.entries[:POSTS]]
+        posts = [
+            {"id": e.id, "title": e.title, "text": clip(e.summary, SUMMARY), "date": e.date, "url": e.url}
+            for e in feed.entries[:POSTS]
+        ]
         content = {"name": feed.title, "website": feed.url, "posts": posts}
         return Read(status="ok", content=content, raw=response.text[:200_000])
 
@@ -52,12 +59,20 @@ class RssChecker(BaseChecker):
         for post in unseen(before.get("posts") or [], after.get("posts") or [], cap=POSTS):
             body = clean(post.get("title")) or clean(post.get("text"))
             summary = clean(post.get("text")) if post.get("title") else ""
-            changes.append(Change("new post", "", "\n".join(x for x in (body, summary, post.get("url")) if x),
-                                  str(post.get("date") or "")[:10]))
+            changes.append(
+                Change(
+                    "new post",
+                    "",
+                    "\n".join(x for x in (body, summary, post.get("url")) if x),
+                    str(post.get("date") or "")[:10],
+                )
+            )
         return changes
 
     def describe(self, content: Mapping[str, Any]) -> str:
         lines = [f"Blog feed {content.get('name', '')} {content.get('website', '')}".strip()]
         for post in content.get("posts") or []:
-            lines.append(f"- {str(post.get('date'))[:10]} {post.get('title') or post.get('text')} {post.get('url')}")
+            lines.append(
+                f"- {str(post.get('date'))[:10]} {post.get('title') or post.get('text')} {post.get('url')}"
+            )
         return clip("\n".join(lines), 4000)

@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Ada's notes</title>
+  <link href="https://ada.dev/" rel="alternate"/>
+  <id>https://ada.dev/</id>
+  <entry>
+    <title>On notation</title>
+    <link href="https://ada.dev/notation" rel="alternate"/>
+    <id>tag:ada.dev,2026:notation</id>
+    <published>2026-02-01T09:00:00Z</published>
+    <summary type="html">&lt;p&gt;Why notation &lt;b&gt;matters&lt;/b&gt;.&lt;/p&gt;</summary>
+  </entry>
+  <entry>
+    <title>Hello</title>
+    <link href="https://ada.dev/hello"/>
+    <id>tag:ada.dev,2026:hello</id>
+    <updated>2026-01-01T09:00:00Z</updated>
+    <summary>First post.</summary>
+  </entry>
+</feed>

@@ -30,9 +30,14 @@ API = "https://api.github.com"
 REPOS = 10  # the newest repositories kept per read
 RELEASES_PER_REPO = 3
 RELEASES = 20
-PROFILE_FIELDS = (("name", "name changed"), ("bio", "bio changed"), ("organization", "company changed"),
-                  ("location", "location changed"), ("website", "website changed"),
-                  ("x_handle", "x handle changed"))
+PROFILE_FIELDS = (
+    ("name", "name changed"),
+    ("bio", "bio changed"),
+    ("organization", "company changed"),
+    ("location", "location changed"),
+    ("website", "website changed"),
+    ("x_handle", "x handle changed"),
+)
 
 
 class _RateLimited(Exception):
@@ -66,7 +71,8 @@ class GitHubChecker(BaseChecker):
         Raises ``_RateLimited`` when every credential is exhausted."""
         tokens = [t.strip() for t in str(ctx.env.get("GITHUB_TOKEN") or "").split(",") if t.strip()]
         credentials: list[tuple[int, dict[str, str]]] = [
-            (i, {"Authorization": f"Bearer {t}"}) for i, t in enumerate(tokens)] or [(-1, {})]
+            (i, {"Authorization": f"Bearer {t}"}) for i, t in enumerate(tokens)
+        ] or [(-1, {})]
         now = time.time()
         for index, auth in credentials:
             if self._exhausted.get(index, 0) > now:
@@ -74,8 +80,10 @@ class GitHubChecker(BaseChecker):
             headers = {"Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28", **auth}
             response = ctx.http.get(f"{API}{path}", params=params or {}, headers=headers)
             lowered = {str(k).lower(): str(v) for k, v in (response.headers or {}).items()}
-            limited = response.status == 429 or (response.status == 403 and (
-                lowered.get("x-ratelimit-remaining") == "0" or "rate limit" in response.text.lower()))
+            limited = response.status == 429 or (
+                response.status == 403
+                and (lowered.get("x-ratelimit-remaining") == "0" or "rate limit" in response.text.lower())
+            )
             if limited:
                 reset = lowered.get("x-ratelimit-reset", "")
                 self._exhausted[index] = float(reset) if reset.isdigit() else now + 60
@@ -113,32 +121,46 @@ class GitHubChecker(BaseChecker):
         content = normalise(profile, created, releases)
         return Read(status="ok", content=content, raw={"user": profile, "repos": created})
 
-    def _releases(self, ctx: CheckContext, login: str, count: int,
-                  previous: Mapping[str, Any] | None) -> list[dict[str, Any]]:
+    def _releases(
+        self, ctx: CheckContext, login: str, count: int, previous: Mapping[str, Any] | None
+    ) -> list[dict[str, Any]]:
         """Recent releases of the most starred recently pushed repositories. A repository whose
         releases cannot be read keeps the ones the last read had, so a failed call never makes
         old releases look new on the next read."""
-        pushed = self._get(ctx, f"/users/{login}/repos", {"sort": "pushed", "per_page": 30})
-        if pushed.status != 200 or not isinstance(pushed.json(), list):
+        try:
+            pushed = self._get(ctx, f"/users/{login}/repos", {"sort": "pushed", "per_page": 30})
+            listing = pushed.json() if pushed.status == 200 else None
+        except (HttpError, _RateLimited, ValueError):
+            listing = None
+        if not isinstance(listing, list):
             return list((previous or {}).get("releases") or [])
-        candidates = [r for r in pushed.json() if isinstance(r, dict) and not r.get("fork") and r.get("name")]
+        candidates = [r for r in listing if isinstance(r, dict) and not r.get("fork") and r.get("name")]
         candidates.sort(key=lambda r: (-int(r.get("stargazers_count") or 0), str(r.get("name"))))
         old = [r for r in (previous or {}).get("releases") or [] if isinstance(r, dict)]
         out: list[dict[str, Any]] = []
         for repo in candidates[:count]:
             name = str(repo["name"])
-            answer = self._get(ctx, f"/repos/{login}/{name}/releases", {"per_page": RELEASES_PER_REPO})
-            body = answer.json() if answer.status == 200 else None
+            try:
+                answer = self._get(ctx, f"/repos/{login}/{name}/releases", {"per_page": RELEASES_PER_REPO})
+                body = answer.json() if answer.status == 200 else None
+            except (HttpError, _RateLimited, ValueError):  # releases are extra: keep the last ones
+                body = None
             if not isinstance(body, list):
                 out += [r for r in old if r.get("repo") == name]
                 continue
             for release in body:
                 if not isinstance(release, dict) or release.get("draft"):
                     continue
-                out.append({"id": str(release.get("id") or release.get("tag_name")), "repo": name,
-                            "tag": clean(release.get("tag_name")), "name": clean(release.get("name")),
-                            "date": clean(release.get("published_at") or release.get("created_at")),
-                            "url": clean(release.get("html_url"))})
+                out.append(
+                    {
+                        "id": str(release.get("id") or release.get("tag_name")),
+                        "repo": name,
+                        "tag": clean(release.get("tag_name")),
+                        "name": clean(release.get("name")),
+                        "date": clean(release.get("published_at") or release.get("created_at")),
+                        "url": clean(release.get("html_url")),
+                    }
+                )
         out.sort(key=lambda r: (r["date"], r["id"]), reverse=True)
         return out[:RELEASES]
 
@@ -148,12 +170,23 @@ class GitHubChecker(BaseChecker):
         changes: list[Change] = []
         for field, label in PROFILE_FIELDS:
             changes += text_change(label, before.get(field), after.get(field))
-        changes += flag_change("hireable flag changed", (before.get("flags") or {}).get("hireable"),
-                               (after.get("flags") or {}).get("hireable"))
-        for repo in unseen(before.get("repos") or [], after.get("repos") or [], cap=REPOS, key="name", date="created"):
+        changes += flag_change(
+            "hireable flag changed",
+            (before.get("flags") or {}).get("hireable"),
+            (after.get("flags") or {}).get("hireable"),
+        )
+        for repo in unseen(
+            before.get("repos") or [], after.get("repos") or [], cap=REPOS, key="name", date="created"
+        ):
             text = repo["name"] + (f": {repo['description']}" if repo.get("description") else "")
-            changes.append(Change("new repository", "", f"{text}\n{repo.get('url', '')}".strip(),
-                                  str(repo.get("created") or "")[:10]))
+            changes.append(
+                Change(
+                    "new repository",
+                    "",
+                    f"{text}\n{repo.get('url', '')}".strip(),
+                    str(repo.get("created") or "")[:10],
+                )
+            )
         # Releases are compared only when both reads carried them; the newest one seen is the
         # floor, so a repository entering the top set does not replay its history.
         if "releases" in before and "releases" in after:
@@ -165,8 +198,14 @@ class GitHubChecker(BaseChecker):
                     title = f"{release.get('repo')} {release.get('tag')}".strip()
                     if release.get("name") and release.get("name") != release.get("tag"):
                         title += f" ({release['name']})"
-                    changes.append(Change("new release", "", f"{title}\n{release.get('url', '')}".strip(),
-                                          str(release.get("date") or "")[:10]))
+                    changes.append(
+                        Change(
+                            "new release",
+                            "",
+                            f"{title}\n{release.get('url', '')}".strip(),
+                            str(release.get("date") or "")[:10],
+                        )
+                    )
         return changes
 
     def guard(self, before: Mapping[str, Any], after: Mapping[str, Any]) -> str:
@@ -176,36 +215,59 @@ class GitHubChecker(BaseChecker):
 
     def describe(self, content: Mapping[str, Any]) -> str:
         lines = [f"GitHub @{content.get('login', '')}: {content.get('name', '')}".rstrip(": ")]
-        for key, title in (("bio", "Bio"), ("organization", "Company"), ("location", "Location"),
-                           ("website", "Website"), ("x_handle", "X")):
+        for key, title in (
+            ("bio", "Bio"),
+            ("organization", "Company"),
+            ("location", "Location"),
+            ("website", "Website"),
+            ("x_handle", "X"),
+        ):
             if content.get(key):
                 lines.append(f"{title}: {content[key]}")
         if (content.get("flags") or {}).get("hireable"):
             lines.append("Marked hireable")
         for repo in content.get("repos") or []:
-            lines.append(f"- repo {repo['name']} (created {str(repo.get('created'))[:10]}, ~{repo.get('stars', 0)}★)"
-                         + (f": {repo['description']}" if repo.get("description") else ""))
+            lines.append(
+                f"- repo {repo['name']} (created {str(repo.get('created'))[:10]}, ~{repo.get('stars', 0)}★)"
+                + (f": {repo['description']}" if repo.get("description") else "")
+            )
         for release in content.get("releases") or []:
-            lines.append(f"- release {release.get('repo')} {release.get('tag')} ({str(release.get('date'))[:10]})")
+            lines.append(
+                f"- release {release.get('repo')} {release.get('tag')} ({str(release.get('date'))[:10]})"
+            )
         return clip("\n".join(lines), 4000)
 
 
-def normalise(user: Mapping[str, Any], repos: list[Any], releases: list[dict[str, Any]] | None) -> dict[str, Any]:
+def normalise(
+    user: Mapping[str, Any], repos: list[Any], releases: list[dict[str, Any]] | None
+) -> dict[str, Any]:
     """The stored content. Follower counts are left out and stars rounded: they churn on their own."""
     kept = []
     for repo in repos:
         if not isinstance(repo, dict) or not repo.get("name") or repo.get("fork"):
             continue
-        kept.append({"name": clean(repo.get("name")), "description": clean(repo.get("description")),
-                     "created": clean(repo.get("created_at")), "url": clean(repo.get("html_url")),
-                     "stars": round2(repo.get("stargazers_count"))})
+        kept.append(
+            {
+                "name": clean(repo.get("name")),
+                "description": clean(repo.get("description")),
+                "created": clean(repo.get("created_at")),
+                "url": clean(repo.get("html_url")),
+                "stars": round2(repo.get("stargazers_count")),
+            }
+        )
     kept.sort(key=lambda r: (r["created"], r["name"]), reverse=True)
     content: dict[str, Any] = {
-        "login": clean(user.get("login")).lower(), "name": clean(user.get("name")), "bio": clean(user.get("bio")),
-        "organization": clean(user.get("company")), "location": clean(user.get("location")),
-        "website": clean(user.get("blog")), "x_handle": clean(user.get("twitter_username")).lower(),
+        "login": clean(user.get("login")).lower(),
+        "name": clean(user.get("name")),
+        "bio": clean(user.get("bio")),
+        "organization": clean(user.get("company")),
+        "location": clean(user.get("location")),
+        "website": clean(user.get("blog")),
+        "x_handle": clean(user.get("twitter_username")).lower(),
         "flags": {"hireable": bool(user.get("hireable"))},
-        "public_repos": int(user.get("public_repos") or 0), "repos": kept[:REPOS]}
+        "public_repos": int(user.get("public_repos") or 0),
+        "repos": kept[:REPOS],
+    }
     if releases is not None:
         content["releases"] = releases
     return content

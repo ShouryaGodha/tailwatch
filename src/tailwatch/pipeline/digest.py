@@ -89,9 +89,12 @@ def select(store: Any, config: Any, pack: packs.Pack, *, channel: str = CHANNEL,
     def drop(reason: str) -> None:
         dropped[reason] = dropped.get(reason, 0) + 1
 
+    superseded = store.superseded_ids(since=util.ago(days=max(90, config.digest.repost_days)))
     kept = []
     for row in rows:
-        if is_stale(row, pack):
+        if row["id"] in superseded:
+            drop("superseded")
+        elif is_stale(row, pack):
             drop("stale")
         elif no_move(row, pack):
             drop("no move")

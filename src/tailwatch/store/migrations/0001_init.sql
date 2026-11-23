@@ -119,7 +119,7 @@ CREATE TABLE verdicts (
   eligible INTEGER NOT NULL DEFAULT 1,
   flags TEXT NOT NULL DEFAULT '[]',
   same_as INTEGER NOT NULL DEFAULT 0,
-  supersedes INTEGER NOT NULL DEFAULT 0,
+  supersedes TEXT NOT NULL DEFAULT '[]',            -- ids of earlier verdicts this one replaces or retracts
   signal_date TEXT NOT NULL DEFAULT '',
   wrong_person INTEGER NOT NULL DEFAULT 0,
   judged_by TEXT NOT NULL DEFAULT 'model',         -- model | gate | human | desk | report

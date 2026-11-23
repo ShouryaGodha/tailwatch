@@ -1,0 +1,27 @@
+# Zero-infrastructure tailwatch: copy this file to .github/workflows/tailwatch.yml in a private
+# repository that holds your tailwatch.yaml and watchlist.csv. Each run is one scheduler tick.
+# Secrets: ANTHROPIC_API_KEY, TAILWATCH_DATABASE (a hosted Postgres URL; SQLite would not survive
+# between runs), and optionally SLACK_BOT_TOKEN, GITHUB_TOKEN is provided by Actions.
+name: tailwatch
+
+on:
+  schedule:
+    - cron: "0,30 * * * *"
+  workflow_dispatch:
+
+concurrency: tailwatch
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv tool install "tailwatch[slack,postgres] @ git+https://github.com/ShouryaGodha/tailwatch"
+      - run: tailwatch tick
+        env:
+          TAILWATCH_DATABASE: ${{ secrets.TAILWATCH_DATABASE }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_BOT_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

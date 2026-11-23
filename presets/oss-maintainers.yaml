@@ -1,0 +1,35 @@
+# tailwatch: follow open-source maintainers and hear what they publish and release.
+name: OSS maintainers
+database: sqlite:///tailwatch.db
+signals: research-output        # paper / release / announcement
+
+models:
+  default: anthropic:claude-opus-5-5
+
+priority:
+  tiers:
+    - name: core projects
+      orgs: []                  # the organizations or projects you care most about
+  aliases: {}
+  trusted_feeds: []
+
+watchlist:
+  imports: [watchlist.csv]
+
+connectors:
+  github: {enabled: true, cadence_hours: 12}
+  homepage: {enabled: true}
+  rss: {enabled: true}
+  bluesky: {enabled: true}
+  arxiv: {enabled: false}
+  semantic_scholar: {enabled: false}
+
+feeds:
+  - kind: hackernews
+    name: hn-show
+    options: {query: "Show HN"}
+
+delivery: {console: true, markdown_dir: digests}
+schedule: {timezone: UTC, pass_time: "06:00", digest_time: "08:00", maintenance_time: "08:30"}
+digest: {cap: 15, window_hours: 26, repost_days: 365}
+switches: {verify: "off", rank: true, engineer: false, candidates: false}

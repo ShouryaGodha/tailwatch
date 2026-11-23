@@ -17,7 +17,13 @@ def _verdict(row: dict[str, Any] | None) -> dict[str, Any] | None:
         return None
     row["now"] = util.loads(row.get("now"), {})
     row["flags"] = util.loads(row.get("flags"), [])
+    row["supersedes"] = _ids(util.loads(row.get("supersedes"), []) if isinstance(row.get("supersedes"), str) else row.get("supersedes"))
     return row
+
+
+def _ids(value: Any) -> list[int]:
+    values = value if isinstance(value, (list, tuple)) else [value]
+    return sorted({int(v) for v in values if str(v or "").strip().isdigit() and int(v) > 0})
 
 
 def _observation(row: dict[str, Any] | None) -> dict[str, Any] | None:
@@ -151,7 +157,7 @@ class ChecksMixin:
                 "now": util.dumps(now), "category": str(verdict.get("category") or ""),
                 "priority": int(verdict.get("priority") or 0), "eligible": 0 if verdict.get("eligible") is False else 1,
                 "flags": util.dumps(list(verdict.get("flags") or [])), "same_as": int(verdict.get("same_as") or 0),
-                "supersedes": int(verdict.get("supersedes") or 0), "signal_date": str(verdict.get("signal_date") or ""),
+                "supersedes": util.dumps(_ids(verdict.get("supersedes"))), "signal_date": str(verdict.get("signal_date") or ""),
                 "wrong_person": 1 if verdict.get("wrong_person") else 0, "judged_by": judged_by, "model": model,
                 "prompt_version": prompt_version, "guidance_hash": guidance_hash, "by_whom": by_whom, "created_at": util.iso()})
             self.db.update("observations", {"id": observation_id}, {"judge_state": "judged"})
@@ -198,6 +204,12 @@ class ChecksMixin:
             row["events"] = [{"label": e["label"], "before": util.clip(e["before_text"], 300), "after": util.clip(e["after_text"], 300)}
                              for e in self.events_of(row["observation_id"])]
         return rows
+
+    def superseded_ids(self, *, since: str) -> set[int]:
+        """Ids of verdicts that a newer current verdict replaced or retracted (its supersedes)."""
+        rows = self.db.query("SELECT v.supersedes FROM verdicts v JOIN (" + CURRENT + ") cur ON cur.id = v.id "
+                             "WHERE v.created_at >= ? AND v.supersedes != '[]'", [since])
+        return {int(i) for r in rows for i in util.loads(r["supersedes"], []) or []}
 
     def watch_stats(self, *, since: str) -> list[dict[str, Any]]:
         return self.db.query(

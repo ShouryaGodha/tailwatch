@@ -1,0 +1,41 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.11", "3.12", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv venv --python ${{ matrix.python }} && uv pip install -e ".[all]" pytest ruff
+      - run: .venv/bin/ruff check .
+      - run: .venv/bin/pytest -q
+      - name: The demo runs end to end with no keys
+        run: .venv/bin/tailwatch demo
+
+  postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tailwatch
+          POSTGRES_PASSWORD: tailwatch
+          POSTGRES_DB: tailwatch_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv venv --python 3.12 && uv pip install -e ".[all]" pytest
+      - run: .venv/bin/pytest -q tests/test_store_postgres.py
+        env:
+          TAILWATCH_TEST_DSN: postgresql://tailwatch:tailwatch@localhost:5432/tailwatch_test

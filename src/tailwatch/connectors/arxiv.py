@@ -63,13 +63,27 @@ def parse_papers(xml_text: str) -> list[dict[str, Any]]:
                 authors.append(name)
                 if affiliation := child_text(author, "affiliation"):
                     affiliations[name] = affiliation
-        link = next((a.get("href", "") for a in children(entry, "link")
-                     if a.get("rel") == "alternate" or a.get("type") == "text/html"), "")
+        link = next(
+            (
+                a.get("href", "")
+                for a in children(entry, "link")
+                if a.get("rel") == "alternate" or a.get("type") == "text/html"
+            ),
+            "",
+        )
         category = child(entry, "primary_category")
         venue = child_text(entry, "journal_ref") or (category.get("term", "") if category is not None else "")
-        papers.append({"id": _paper_id(raw_id), "title": clean(child_text(entry, "title")),
-                       "date": iso_date(child_text(entry, "published")), "url": link or raw_id,
-                       "venue": clean(venue), "authors": authors, "_affiliations": affiliations})
+        papers.append(
+            {
+                "id": _paper_id(raw_id),
+                "title": clean(child_text(entry, "title")),
+                "date": iso_date(child_text(entry, "published")),
+                "url": link or raw_id,
+                "venue": clean(venue),
+                "authors": authors,
+                "_affiliations": affiliations,
+            }
+        )
     papers.sort(key=lambda p: (p["date"], p["id"]), reverse=True)
     return papers
 
@@ -106,8 +120,12 @@ class ArxivChecker(BaseChecker):
 
     def _query(self, ctx: CheckContext, query: str) -> tuple[str, str]:
         """``(xml, error)`` for an API author query."""
-        params = {"search_query": f'au:"{query}"' if " " in query or "," in query else f"au:{query}",
-                  "sortBy": "submittedDate", "sortOrder": "descending", "max_results": PAPERS}
+        params = {
+            "search_query": f'au:"{query}"' if " " in query or "," in query else f"au:{query}",
+            "sortBy": "submittedDate",
+            "sortOrder": "descending",
+            "max_results": PAPERS,
+        }
         response = ctx.http.get(API, params=params)
         if response.status != 200:
             return "", f"arXiv API answered HTTP {response.status}"
@@ -141,9 +159,12 @@ class ArxivChecker(BaseChecker):
         name, affiliation = _affiliation(papers, who)
         if not affiliation:  # arXiv rarely lists one; keep what an earlier paper said
             affiliation = str((previous or {}).get("organization") or "")
-        content = {"query": who, "name": name or _author_name(papers, who),
-                   "organization": affiliation,
-                   "papers": [{k: v for k, v in p.items() if not k.startswith("_")} for p in papers[:PAPERS]]}
+        content = {
+            "query": who,
+            "name": name or _author_name(papers, who),
+            "organization": affiliation,
+            "papers": [{k: v for k, v in p.items() if not k.startswith("_")} for p in papers[:PAPERS]],
+        }
         return Read(status="ok", content=content, raw=xml_text[:200_000])
 
     def guard(self, before: Mapping[str, Any], after: Mapping[str, Any]) -> str:
@@ -158,8 +179,14 @@ class ArxivChecker(BaseChecker):
             changes.append(Change("affiliation changed", old, new))
         for paper in unseen(before.get("papers") or [], after.get("papers") or [], cap=PAPERS):
             authors = ", ".join(paper.get("authors") or [])
-            changes.append(Change("new paper", "", f"{paper.get('title')}\n{authors}\n{paper.get('url')}",
-                                  str(paper.get("date") or "")[:10]))
+            changes.append(
+                Change(
+                    "new paper",
+                    "",
+                    f"{paper.get('title')}\n{authors}\n{paper.get('url')}",
+                    str(paper.get("date") or "")[:10],
+                )
+            )
         return changes
 
     def describe(self, content: Mapping[str, Any]) -> str:
@@ -168,5 +195,7 @@ class ArxivChecker(BaseChecker):
             lines.append(f"Affiliation: {content['organization']}")
         for paper in content.get("papers") or []:
             authors = ", ".join((paper.get("authors") or [])[:8])
-            lines.append(f"- {str(paper.get('date'))[:10]} {paper.get('title')} ({authors}) {paper.get('url')}")
+            lines.append(
+                f"- {str(paper.get('date'))[:10]} {paper.get('title')} ({authors}) {paper.get('url')}"
+            )
         return clip("\n".join(lines), 4000)

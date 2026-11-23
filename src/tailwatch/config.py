@@ -197,6 +197,8 @@ def load(path: str | os.PathLike[str] | None = None, *, overrides: Mapping[str, 
         data = yaml.safe_load(Path(found).read_text(encoding="utf-8")) or {}
         base = Path(found).resolve().parent
     data = {**data, **(overrides or {})}
+    if os.environ.get("TAILWATCH_DATABASE") and not (overrides or {}).get("database"):
+        data["database"] = os.environ["TAILWATCH_DATABASE"]  # a hosted database in CI or the cloud
     data.setdefault("base_dir", str(base))
     config = Config.model_validate(data)
     db = config.database

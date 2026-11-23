@@ -1,0 +1,61 @@
+# tailwatch: follow AI researchers and engineers, and hear first when they move or start looking.
+# Docs: https://github.com/ShouryaGodha/tailwatch/blob/main/docs/configuration.md
+name: AI researchers
+database: sqlite:///tailwatch.db
+signals: career-moves          # left / looking. Also: research-output, founder-watch, or a path to your own pack
+
+models:
+  default: anthropic:claude-opus-5-5
+  # Any role can use another model, e.g. a cheaper one for high-volume calls:
+  # judge: anthropic:claude-sonnet-5-5
+  # identifier: anthropic:claude-haiku-5-5
+  # Other providers: openai:<model>, azure:<deployment>, openrouter:<vendor/model>, ollama:<model>
+
+priority:
+  tiers:
+    - name: frontier labs
+      orgs: [OpenAI, Anthropic, Google DeepMind, Meta, xAI]
+    - name: notable
+      orgs: [Mistral, Cohere, NVIDIA, Microsoft, Apple, Hugging Face, Allen Institute for AI]
+  aliases:
+    Google DeepMind: [DeepMind, GDM, Google Research]
+    Meta: [FAIR, Meta AI, Meta Superintelligence Labs]
+  trusted_feeds: []            # feed names whose reports are taken as true (they skip the editor)
+
+watchlist:
+  imports: [watchlist.csv]     # name, organization, title, github, homepage, x, linkedin, arxiv, ...
+  people: []
+
+connectors:                    # free ones are on by default; paid ones are off until you turn them on
+  github: {enabled: true}
+  homepage: {enabled: true}
+  arxiv: {enabled: true}
+  semantic_scholar: {enabled: true}
+  bluesky: {enabled: true}
+  rss: {enabled: true}
+  x: {enabled: false}          # twitterapi.io, TWITTERAPI_IO_KEY, about $0.0002-0.003 a check
+  linkedin: {enabled: false, cadence_hours: 168}   # Apify, APIFY_API_KEY, about $0.005 a profile a week
+
+feeds:
+  - kind: hackernews
+    name: hn-moves
+    options: {query: "joins OR joined OR leaving OR \"left\" research lab"}
+
+delivery:
+  console: true
+  markdown_dir: digests
+  slack:
+    digest_channel: ""         # C0123... the channel that gets the daily digest
+    desk_channel: ""           # C0456... where you talk to the desk agent
+    shadow_channel: ""         # optional: a trial channel for the verified-only digest
+
+schedule:
+  timezone: UTC
+  pass_time: "02:00"
+  digest_time: "09:00"
+  maintenance_time: "09:30"
+
+digest: {cap: 10, window_hours: 26, repost_days: 30}
+switches: {verify: shadow, rank: true, engineer: false, candidates: true}
+budgets: {editor_daily: 5, enrich_daily: 5, engineer_daily: 10}
+team: []                       # Slack user ids allowed to make changes; empty = everyone

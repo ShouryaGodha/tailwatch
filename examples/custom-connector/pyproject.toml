@@ -1,0 +1,21 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tailwatch-mastodon"
+version = "0.1.0"
+description = "A Mastodon checker for tailwatch: profile changes and new posts through an instance's public API."
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = ["tailwatch"]
+
+# This line is the whole integration: tailwatch loads every entry point in this group.
+[project.entry-points."tailwatch.connectors"]
+mastodon = "tailwatch_mastodon:MastodonChecker"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/tailwatch_mastodon"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]

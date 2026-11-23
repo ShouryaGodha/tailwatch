@@ -7,11 +7,14 @@ caller holds stays where it was."""
 
 from __future__ import annotations
 
+from tailwatch.connectors.http import HttpError
 
-class FeedError(RuntimeError):
-    """A poll that could not read its feed. ``outage`` names a provider-wide refusal
-    ("out of credits", "key rejected", "rate limited") the way ``Read.outage`` does."""
 
-    def __init__(self, message: str, *, outage: str = "") -> None:
-        super().__init__(message)
+class FeedError(HttpError):
+    """A poll that could not read its feed. An ``HttpError``, so the watch loop records it
+    against the feed and moves on. ``outage`` names a provider-wide refusal ("out of credits",
+    "key rejected", "rate limited", "no credential") the way ``Read.outage`` does."""
+
+    def __init__(self, message: str, *, outage: str = "", status: int = 0) -> None:
+        super().__init__(message, status=status)
         self.outage = outage

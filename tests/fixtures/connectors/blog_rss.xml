@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Lab news</title>
+    <link>https://lab.example/news</link>
+    <item>
+      <title>Ada Lovelace joins the lab</title>
+      <link>https://lab.example/news/ada</link>
+      <guid>https://lab.example/news/ada</guid>
+      <pubDate>Mon, 02 Mar 2026 10:00:00 +0000</pubDate>
+      <description>&lt;p&gt;Welcome &lt;a href="https://github.com/ada"&gt;Ada&lt;/a&gt;, previously at https://x.com/ada_l.&lt;/p&gt;</description>
+      <dc:creator>Lab staff</dc:creator>
+    </item>
+    <item>
+      <title>Lab opens</title>
+      <link>https://lab.example/news/opens</link>
+      <guid>https://lab.example/news/opens</guid>
+      <pubDate>Sun, 01 Feb 2026 10:00:00 +0000</pubDate>
+      <description>We are open.</description>
+    </item>
+  </channel>
+</rss>

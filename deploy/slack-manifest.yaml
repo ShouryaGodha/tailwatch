@@ -1,0 +1,32 @@
+# Create the Slack app from this manifest (api.slack.com/apps → Create New App → From a manifest),
+# install it, then:
+#   SLACK_BOT_TOKEN = the Bot User OAuth Token (xoxb-...)
+#   SLACK_APP_TOKEN = an App-Level Token with connections:write (xapp-...)
+# Invite the bot to your digest channel and your desk channel, and put their ids in tailwatch.yaml.
+display_information:
+  name: tailwatch
+  description: Tracks the people you care about and posts what changed, once a day.
+  background_color: "#0f172a"
+features:
+  bot_user:
+    display_name: tailwatch
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - app_mentions:read
+      - channels:history
+      - groups:history
+      - chat:write
+      - users:read
+settings:
+  event_subscriptions:
+    bot_events:
+      - app_mention
+      - message.channels
+      - message.groups
+  interactivity:
+    is_enabled: false
+  org_deploy_enabled: false
+  socket_mode_enabled: true
+  token_rotation_enabled: false

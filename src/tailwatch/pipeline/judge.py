@@ -190,6 +190,7 @@ def judge_pending(store: Any, config: Any, env: Mapping[str, str], *, checkers: 
             for check in store.pending_checks(limit):
                 if gated(check, pack):
                     store.save_verdict(check["id"], check["person_id"], {"signal": "none", "reason": "a flag alone is not a signal",
+                                                                         "summary": "A flag changed and nothing else (no model call)",
                                                                          "flags": ["flag_only"], "confidence": 1.0},
                                        judged_by="gate", prompt_version=pack.prompt_version)
                     counts["gated"] += 1

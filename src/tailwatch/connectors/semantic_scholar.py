@@ -33,11 +33,19 @@ def author_id_of(url: str) -> str:
 
 def _paper(item: Mapping[str, Any]) -> dict[str, Any]:
     external = item.get("externalIds") or {}
-    url = clean(item.get("url")) or (f"https://arxiv.org/abs/{external['ArXiv']}" if external.get("ArXiv") else "")
-    return {"id": clean(item.get("paperId")), "title": clean(item.get("title")),
-            "date": clean(item.get("publicationDate") or item.get("year") or ""), "url": url,
-            "venue": clean(item.get("venue")),
-            "authors": [clean(a.get("name")) for a in item.get("authors") or [] if isinstance(a, dict) and a.get("name")]}
+    url = clean(item.get("url")) or (
+        f"https://arxiv.org/abs/{external['ArXiv']}" if external.get("ArXiv") else ""
+    )
+    return {
+        "id": clean(item.get("paperId")),
+        "title": clean(item.get("title")),
+        "date": clean(item.get("publicationDate") or item.get("year") or ""),
+        "url": url,
+        "venue": clean(item.get("venue")),
+        "authors": [
+            clean(a.get("name")) for a in item.get("authors") or [] if isinstance(a, dict) and a.get("name")
+        ],
+    }
 
 
 class SemanticScholarChecker(BaseChecker):
@@ -51,15 +59,25 @@ class SemanticScholarChecker(BaseChecker):
         author = author_id_of(url)
         if not author:
             return Read.failed(f"not a Semantic Scholar author: {url!r}")
-        headers = {"x-api-key": str(ctx.env["SEMANTIC_SCHOLAR_API_KEY"])} if ctx.env.get("SEMANTIC_SCHOLAR_API_KEY") else {}
+        headers = (
+            {"x-api-key": str(ctx.env["SEMANTIC_SCHOLAR_API_KEY"])}
+            if ctx.env.get("SEMANTIC_SCHOLAR_API_KEY")
+            else {}
+        )
         limit = max(1, min(int(ctx.options.get("limit") or 100), 1000))
         try:
-            profile = ctx.http.get(f"{API}/author/{author}", headers=headers,
-                                   params={"fields": "name,affiliations,homepage,paperCount,hIndex"})
+            profile = ctx.http.get(
+                f"{API}/author/{author}",
+                headers=headers,
+                params={"fields": "name,affiliations,homepage,paperCount,hIndex"},
+            )
             if failure := self._failure(profile.status, author):
                 return failure
-            papers = ctx.http.get(f"{API}/author/{author}/papers", headers=headers, params={
-                "fields": "title,year,publicationDate,venue,url,externalIds,authors", "limit": limit})
+            papers = ctx.http.get(
+                f"{API}/author/{author}/papers",
+                headers=headers,
+                params={"fields": "title,year,publicationDate,venue,url,externalIds,authors", "limit": limit},
+            )
             if failure := self._failure(papers.status, author, papers_call=True):
                 return failure
             profile_json, papers_json = profile.json(), papers.json()
@@ -67,14 +85,22 @@ class SemanticScholarChecker(BaseChecker):
             return Read.failed(str(error))
         except ValueError as error:
             return Read.failed(f"Semantic Scholar answered something that is not JSON: {error}")
-        items = [_paper(p) for p in (papers_json or {}).get("data") or [] if isinstance(p, dict) and p.get("paperId")]
+        items = [
+            _paper(p)
+            for p in (papers_json or {}).get("data") or []
+            if isinstance(p, dict) and p.get("paperId")
+        ]
         items.sort(key=lambda p: (p["date"], p["id"]), reverse=True)
-        content = {"name": clean(profile_json.get("name")),
-                   "organization": "; ".join(clean(a) for a in profile_json.get("affiliations") or [] if clean(a)),
-                   "website": clean(profile_json.get("homepage")),
-                   "stats": {"papers": int(profile_json.get("paperCount") or 0),
-                             "h_index": int(profile_json.get("hIndex") or 0)},
-                   "papers": items[:PAPERS]}
+        content = {
+            "name": clean(profile_json.get("name")),
+            "organization": "; ".join(clean(a) for a in profile_json.get("affiliations") or [] if clean(a)),
+            "website": clean(profile_json.get("homepage")),
+            "stats": {
+                "papers": int(profile_json.get("paperCount") or 0),
+                "h_index": int(profile_json.get("hIndex") or 0),
+            },
+            "papers": items[:PAPERS],
+        }
         return Read(status="ok", content=content, raw={"author": profile_json})
 
     @staticmethod
@@ -99,19 +125,30 @@ class SemanticScholarChecker(BaseChecker):
         changes += text_change("website changed", before.get("website"), after.get("website"))
         for paper in unseen(before.get("papers") or [], after.get("papers") or [], cap=PAPERS):
             venue = f" ({paper['venue']})" if paper.get("venue") else ""
-            changes.append(Change("new paper", "", f"{paper.get('title')}{venue}\n"
-                                  f"{', '.join(paper.get('authors') or [])}\n{paper.get('url')}".strip(),
-                                  str(paper.get("date") or "")[:10]))
+            changes.append(
+                Change(
+                    "new paper",
+                    "",
+                    f"{paper.get('title')}{venue}\n"
+                    f"{', '.join(paper.get('authors') or [])}\n{paper.get('url')}".strip(),
+                    str(paper.get("date") or "")[:10],
+                )
+            )
         return changes
 
     def describe(self, content: Mapping[str, Any]) -> str:
         stats = content.get("stats") or {}
-        lines = [f"Semantic Scholar author {content.get('name', '')}: {stats.get('papers', 0)} papers, "
-                 f"h-index {stats.get('h_index', 0)}"]
+        lines = [
+            f"Semantic Scholar author {content.get('name', '')}: {stats.get('papers', 0)} papers, "
+            f"h-index {stats.get('h_index', 0)}"
+        ]
         if content.get("organization"):
             lines.append(f"Affiliation: {content['organization']}")
         if content.get("website"):
             lines.append(f"Homepage: {content['website']}")
         for paper in content.get("papers") or []:
-            lines.append(f"- {paper.get('date')} {paper.get('title')}" + (f" ({paper['venue']})" if paper.get("venue") else ""))
+            lines.append(
+                f"- {paper.get('date')} {paper.get('title')}"
+                + (f" ({paper['venue']})" if paper.get("venue") else "")
+            )
         return clip("\n".join(lines), 4000)
