@@ -12,7 +12,9 @@
 
 [Quickstart](#quickstart) · [How it works](#how-it-works) · [Architecture](docs/architecture.md) · [Connectors](docs/connectors.md) · [Signal packs](docs/signal-packs.md) · [Deploy](docs/deploy.md)
 
-<img src="docs/assets/demo.svg" alt="tailwatch demo: a watchlist, two days of changes, the judge's verdicts and the daily digest" width="860">
+<img src="docs/assets/demo.svg" alt="tailwatch demo: the judge's verdicts, the daily digest and the desk agent answering why" width="860">
+
+<sub><code>tailwatch demo</code> · runs with no keys · <a href="docs/assets/demo-full.svg">the full run</a> (watchlist, two days of reads, feeds, judge, digest, desk, maintainer, run log)</sub>
 
 </div>
 

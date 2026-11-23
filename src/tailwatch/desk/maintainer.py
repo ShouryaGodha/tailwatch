@@ -92,7 +92,7 @@ _ORDER = re.compile(
     r"\b(?:always|must)\s+(?:post|confirm|publish|send|approve|verify)\b"
     r"|\bnever\s+(?:post|publish|send)\b"
     r"|\b(?:post|confirm|publish|send|ignore|drop|approve)\s+(?:every|all|any)\b"
-    r"|\bignore\s+(?:the\s+|all\s+|previous\s+|earlier\s+|your\s+)?(?:instructions|rules|floors|prompt|evidence)\b",
+    r"|\bignore\s+(?:(?:the|all|any|previous|earlier|your|above|these)\s+){0,3}(?:instructions|rules|floors|prompts?|evidence)\b",
     re.IGNORECASE)
 
 

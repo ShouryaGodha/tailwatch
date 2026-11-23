@@ -1,6 +1,7 @@
 """The routine runner. One ``tick`` every ``schedule.tick_minutes`` (30 by default):
 
-- every tick: the feed watchers, the candidate pipeline, the judge, the editor, the custodian;
+- every tick: the feed watchers, the candidate pipeline, the judge, the editor, the custodian,
+  and the engineer's queued tasks (only when ``switches.engineer`` is on);
 - once a day, on the first tick at or after its local time: link enrichment, the source pass,
   the digest, the maintainer and its desk note.
 
@@ -40,6 +41,7 @@ EVERY_TICK = (
     Job("judge", "tailwatch.pipeline.judge:judge_pending"),
     Job("verify", "tailwatch.desk.verify:verify_cards"),
     Job("custodian", "tailwatch.desk.custodian:run"),
+    Job("engineer", "tailwatch.desk.engineer:run_waiting"),  # returns at once while switches.engineer is off
 )
 DAILY = (
     Job("links_enrich", "tailwatch.enrich.links:enrich_links", at="pass_time", offset_minutes=-20),

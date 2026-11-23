@@ -11,6 +11,7 @@ Opus 5.5 list prices, so the run log shows what a real day would cost.
 
 from __future__ import annotations
 
+import io
 import json
 import re
 import shutil
@@ -192,18 +193,45 @@ def _desk(request: Request) -> Reply:
         return Reply(tool_calls=[ToolCall(id="call_why", name="why", args={"person": "Ada Quill"})],
                      tokens_in=_tokens(request, 60)[0], tokens_out=60)
     text = str(results[-1].get("content") or "")
-    found = re.search(r'"reason": "([^"]+)"', text)
-    review = re.search(r'"id": "(#R\d+)"', text)
-    answer = ("Ada Quill is on today's digest as *left*. Her homepage now says: \"In November 2026 I left Helios Labs "
-              "after four years to start a new company.\" " + (found.group(1) if found else "")
-              + " An earlier, weaker GitHub signal (\"building something new\") was superseded by this one, so she gets one card."
-              + (f" Editor review {review.group(1)}." if review else ""))
+    confidence = re.search(r'"confidence": ([0-9.]+)', text)
+    answer = ("Ada Quill is on today's digest as *left*. Her own homepage changed overnight to say: \"In November 2026 I "
+              "left Helios Labs after four years to start a new company.\" GitHub agrees (company cleared, bio \"building "
+              "something new\"). That weaker GitHub signal was superseded by the homepage one, so she gets one card"
+              + (f"; the judge's confidence is {confidence.group(1)}." if confidence else "."))
     return Reply(text=answer, tokens_in=_tokens(request, 180)[0], tokens_out=180)
+
+
+def _maintainer(packet: dict[str, Any], request: Request) -> Reply:
+    """The maintainer reads the day once: grades the judge, proposes one ranking rule with two of
+    the day's ids as evidence, applies nothing."""
+    samples = packet.get("judge_samples") or []
+    by_signal = {s.get("signal"): s for s in samples}
+    people = [f"person:{r['person_id']}" for r in packet.get("ranker") or [] if r.get("person_id")][:2]
+    grades = [{"agent": "judge", "subject": str(s["id"]), "verdict": "right", "kind": "pattern",
+               "why": "the label follows the person's own words" if s.get("signal") != "none" else "ordinary activity is none"}
+              for s in samples[:4]]
+    proposals = []
+    if len(people) == 2:
+        proposals.append({"skill": "ranking", "setting": "RULES", "op": "add", "urgent": False, "evidence": people,
+                          "value": "A departure to found a company ranks above a reported move to an announced employer.",
+                          "rationale": "Both ranked people left this week; the founder is reachable, the other has started a new job."})
+    answer = {"summary": f"A quiet first day: {len(samples)} checks judged, "
+                         f"{'a departure and a search' if 'left' in by_signal and 'looking' in by_signal else 'a few signals'} "
+                         "found, every source read, spend well under budget.",
+              "lessons": [{"lesson": "A homepage sentence in the person's own words is the strongest evidence of a move.",
+                           "count": 1, "example_ids": [str(by_signal['left']['id'])] if "left" in by_signal else []}],
+              "grades": grades, "proposals": proposals, "issues": [], "needs_owner": []}
+    return Reply(text=json.dumps(answer), tokens_in=_tokens(request, 900)[0], tokens_out=900)
 
 
 def brain(request: Request) -> Reply:
     if request.schema_name in ("desk", "channel"):
         return _desk(request)
+    if request.schema_name == "daily_review":
+        try:
+            return _maintainer(json.loads(str(request.messages[0].get("content") or "{}")), request)
+        except ValueError:
+            pass
     seed: Any = None
     try:
         seed = json.loads(str(request.messages[0].get("content") or ""))
@@ -246,8 +274,10 @@ def demo_config(folder: Path) -> config_module.Config:
     })
 
 
-def run_demo(*, console: Any = None, keep: bool = False) -> dict[str, Any]:
+def run_demo(*, console: Any = None, keep: bool = False, steps: set[int] | None = None) -> dict[str, Any]:
+    """Run every step; print only ``steps`` (all when None)."""
     from rich.console import Console
+    from rich.panel import Panel
     from rich.table import Table
 
     from tailwatch.connectors.http import Http
@@ -255,7 +285,9 @@ def run_demo(*, console: Any = None, keep: bool = False) -> dict[str, Any]:
     from tailwatch.pipeline import coverage, digest, ingest, judge, runner, watch
     from tailwatch.store import open_store
 
-    console = console or Console()
+    real = console or Console()
+    hidden = Console(file=io.StringIO())
+    console = real
     folder = Path("tailwatch-demo").resolve() if keep else Path(tempfile.mkdtemp(prefix="tailwatch-demo-"))
     if keep and folder.exists():
         shutil.rmtree(folder)
@@ -272,6 +304,9 @@ def run_demo(*, console: Any = None, keep: bool = False) -> dict[str, Any]:
         return (None)
 
     def step(title: str, note: str = "") -> None:
+        nonlocal console
+        number = int(title.split(" ", 1)[0]) if title[:1].isdigit() else 0
+        console = real if steps is None or number in steps else hidden
         console.rule(f"[bold cyan]{title}")
         if note:
             console.print(f"[dim]{note}[/dim]")
@@ -335,7 +370,32 @@ def run_demo(*, console: Any = None, keep: bool = False) -> dict[str, Any]:
         except ImportError:
             console.print("[dim](the desk is not installed)[/dim]")
 
-        step("8 · Coverage and the run log", "Every model run is logged with tokens and real cost; failed runs keep what they spent.")
+        step("8 · The maintainer and the desk note",
+             "Once a day it reads everything, grades the agents and proposes. It applies nothing: a person replies \"apply P1\".")
+        try:
+            from tailwatch.desk import notices
+            from tailwatch.desk.maintainer import run_daily
+
+            notes: list[str] = []
+            notices.set_poster(lambda text, thread: notes.append(text) or f"demo-note-{len(notes)}")
+            try:
+                daily = run_daily(store, config, env)
+            finally:
+                notices.set_poster(None)
+            for text in notes:
+                console.print(Panel(text, border_style="magenta", title="desk note", title_align="left"))
+            proposal = next(iter(store.proposals(state="proposed")), None)
+            if proposal:
+                from tailwatch.desk.maintainer import decide
+
+                console.print(f'[bold]> reply in the thread: "apply P{proposal["id"]}"[/bold]')
+                applied = decide(store, config, env, int(proposal["id"]), "apply", by="local")
+                console.print(f"Applied as a versioned setting: {applied.get('key') or applied}")
+            _ = daily
+        except ImportError:
+            console.print("[dim](the maintainer is not installed)[/dim]")
+
+        step("9 · Coverage and the run log", "Every model run is logged with tokens and real cost; failed runs keep what they spent.")
         console.print(coverage.render(coverage.report(store)))
         table = Table("routine", "runs", "tokens in", "tokens out", "cost")
         for row in store.db.query("SELECT routine, COUNT(*) AS n, SUM(tokens_in) AS i, SUM(tokens_out) AS o, SUM(cost_usd) AS c "
@@ -345,6 +405,7 @@ def run_demo(*, console: Any = None, keep: bool = False) -> dict[str, Any]:
         total = store.spend_since("0000")
         console.print(f"Simulated spend for the day at Claude Opus 5.5 list prices: [bold]${total:.3f}[/bold] "
                       f"· {world.requests} HTTP requests answered by the simulated web.")
+        console = real
         console.rule("[bold green]Done")
         console.print("Next: [bold]tailwatch init[/bold] to start your own watchlist · docs: docs/architecture.md"
                       + (f"\nThe demo's database and digest are in {folder}" if keep else ""))

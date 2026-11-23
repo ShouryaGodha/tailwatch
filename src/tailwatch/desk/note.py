@@ -31,8 +31,9 @@ VERSIONED = ("RULES", "FLOORS", "ALIASES")
 TASK_SETTINGS = ("CODE", "PLAYBOOK", "OTHER")
 CAPPED_ROUTINES = {"editor_daily": "verify_card", "enrich_daily": "enrich_person", "engineer_daily": "engineer",
                    "maintainer_daily": "daily_review"}
-HOW_TO_REPLY = ("How to reply in this thread: post R12 · drop R12: why · apply P3 · reject P3: why · keep G7 · drop G7: why · "
-                "close T4: why. Pull requests are merged on GitHub, never from here.")
+# written with <n>, never a real-looking id: the chat reads every id in the note as the thread's
+HOW_TO_REPLY = ("How to reply in this thread: post R<n> · drop R<n>: why · apply P<n> · reject P<n>: why · keep G<n> · "
+                "drop G<n>: why · close T<n>: why. Pull requests are merged on GitHub, never from here.")
 
 
 def _one_line(text: Any, limit: int) -> str:
@@ -95,15 +96,16 @@ def proposal_line(item: Mapping[str, Any]) -> str:
 
 
 def task_line(item: Mapping[str, Any]) -> str:
-    from tailwatch.desk.engineer import pr_number
+    from tailwatch.desk.engineer import TITLE_PREFIX, pr_number
 
     tid = item["id"]
+    title = str(item.get("title") or "").removeprefix(TITLE_PREFIX)
     review = f" · self-review {item['review']}" if item.get("review") else ""
     if item.get("pr"):
         number = pr_number(item["pr"])
-        return (f"• #T{tid} PR {number}: {_one_line(item.get('title'), 90)}{review} · {item['pr']} · "
+        return (f"• #T{tid} PR {number}: {_one_line(title, 90)}{review} · {item['pr']} · "
                 f"reply: merge PR {number} on GitHub / close T{tid}: why")
-    return f"• #T{tid} branch {item.get('branch')}: {_one_line(item.get('title'), 90)}{review} · reply: close T{tid}: why"
+    return f"• #T{tid} branch {item.get('branch')}: {_one_line(title, 90)}{review} · reply: close T{tid}: why"
 
 
 def intel_line(item: Mapping[str, Any]) -> str:
@@ -251,6 +253,17 @@ def note_ids(parts: Mapping[str, Any]) -> dict[str, list[int]]:
     return ids
 
 
+def _record_root(store: Any, config: Any, post_id: str, text: str) -> None:
+    """Keep the note as the first line of its thread, so a reply under it reads the note's ids."""
+    if not post_id or post_id.startswith("file:"):
+        return
+    try:
+        from tailwatch.desk import chat
+    except ImportError:
+        return
+    chat.record_post(store, config.delivery.slack.desk_channel or "", post_id, text)
+
+
 def post_note(store: Any, config: Any, env: Mapping[str, str], *, packet: Mapping[str, Any] | None = None,
               answer: Mapping[str, Any] | None = None, outcome: Mapping[str, Any] | None = None,
               force: bool = False) -> dict[str, Any]:
@@ -275,6 +288,7 @@ def post_note(store: Any, config: Any, env: Mapping[str, str], *, packet: Mappin
     text = render_sections(parts)
     post_id = post_desk(store, config, env, text)
     ids = note_ids(parts)
+    _record_root(store, config, post_id, text)
     store.set_setting(key, post_id, by="desk note", history=False)
     store.set_setting(IDS_KEY + post_id, ids, by="desk note", history=False)
     for pid in ids.get("P", []) + ids.get("T", []):
