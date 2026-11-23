@@ -406,6 +406,14 @@ def run_demo(*, console: Any = None, keep: bool = False, steps: set[int] | None 
         console.print(f"Simulated spend for the day at Claude Opus 5.5 list prices: [bold]${total:.3f}[/bold] "
                       f"· {world.requests} HTTP requests answered by the simulated web.")
         console = real
+        if keep:  # leave a project folder the CLI and the MCP server can open
+            (folder / "tailwatch.yaml").write_text(
+                "# The demo's project: tailwatch people / person ada / runs / digest / mcp --config this file\n"
+                "name: AI researchers (demo)\ndatabase: sqlite:///tailwatch.db\nsignals: career-moves\n"
+                "priority:\n  tiers:\n    - {name: frontier labs, orgs: [Helios Labs, Quanta Research]}\n"
+                "    - {name: notable, orgs: [Northwind AI, Orbit Robotics]}\n"
+                "delivery: {console: true, markdown_dir: digests}\nswitches: {verify: \"off\", rank: false}\n",
+                encoding="utf-8")
         console.rule("[bold green]Done")
         console.print("Next: [bold]tailwatch init[/bold] to start your own watchlist · docs: docs/architecture.md"
                       + (f"\nThe demo's database and digest are in {folder}" if keep else ""))
